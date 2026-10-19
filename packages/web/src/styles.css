@@ -1343,6 +1343,8 @@ a { color: var(--accent); text-decoration: none; }
   color: var(--text-dim);
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.45);
   cursor: pointer;
+  /* 浮在消息上时让底下的文字透不过来，避免看着像压住了操作图标 */
+  backdrop-filter: blur(8px);
 }
 
 .ux-jump:hover { color: var(--text); border-color: #39424f; }
@@ -1363,7 +1365,7 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 @media (max-width: 620px) {
-  .ux-jump { right: 14px; bottom: 150px; }
+  .ux-jump { right: 12px; bottom: 168px; }
   .ux-actions { opacity: 1; pointer-events: auto; }
 }
 
