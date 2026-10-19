@@ -29,6 +29,8 @@ export interface AppState {
   linkDetail?: string;
   host: Record<string, any>;
   catalog: CatalogEntry[];
+  /** 置顶会话的手动顺序（host 随目录下发） */
+  pinnedOrder: string[];
   projects: ProjectEntry[];
   providers: ProviderEntry[];
   appearance: Record<string, any>;
@@ -48,6 +50,7 @@ export class AppStore {
     link: 'idle',
     host: {},
     catalog: [],
+    pinnedOrder: [],
     projects: [],
     providers: [],
     appearance: {},
@@ -260,7 +263,12 @@ export class AppStore {
   private handle(msg: Record<string, any>): void {
     switch (msg.type) {
       case 'catalog':
-        this.patch({ catalog: this.mergeCatalog((msg.entries ?? []) as CatalogEntry[]) });
+        this.patch({
+          catalog: this.mergeCatalog((msg.entries ?? []) as CatalogEntry[]),
+          pinnedOrder: Array.isArray(msg.pinnedOrder)
+            ? (msg.pinnedOrder as string[])
+            : this.state.pinnedOrder
+        });
         this.flushPending();
         break;
       case 'projects':
@@ -353,6 +361,23 @@ export class AppStore {
   }
 
   // ---------------------------------------------------------------- commands
+
+  // 会话管理：三条命令都由桌面端执行，成功后 host 会推新的目录回来
+  renameSession(sessionId: string, title: string): void {
+    const next = title.trim();
+    if (!sessionId || !next) return;
+    this.link?.send({ type: 'session-rename', sessionId, title: next.slice(0, 120) });
+  }
+
+  setSessionPinned(sessionId: string, pinned: boolean): void {
+    if (!sessionId) return;
+    this.link?.send({ type: 'session-pin', sessionId, pinned });
+  }
+
+  removeSession(sessionId: string): void {
+    if (!sessionId) return;
+    this.link?.send({ type: 'session-remove', sessionId });
+  }
 
   openSession(sessionId: string): void {
     const unread = { ...this.state.unread };

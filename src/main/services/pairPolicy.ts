@@ -331,6 +331,20 @@ export function parsePhoneCommand(value: unknown): CommandCheck {
         return { ok: false, error: 'invalid level' };
       }
       return { ok: true, command: value as PhoneToHost };
+    case 'session-rename': {
+      if (!isStr(v.sessionId)) return { ok: false, error: 'missing sessionId' };
+      if (!isStr(v.title)) return { ok: false, error: 'missing title' };
+      return { ok: true, command: value as PhoneToHost };
+    }
+    case 'session-pin': {
+      if (!isStr(v.sessionId)) return { ok: false, error: 'missing sessionId' };
+      if (typeof v.pinned !== 'boolean') return { ok: false, error: 'invalid pinned' };
+      return { ok: true, command: value as PhoneToHost };
+    }
+    case 'session-remove': {
+      if (!isStr(v.sessionId)) return { ok: false, error: 'missing sessionId' };
+      return { ok: true, command: value as PhoneToHost };
+    }
     case 'push-subscribe': {
       const sub = v.subscription as Record<string, unknown> | undefined;
       if (typeof sub !== 'object' || sub === null) {

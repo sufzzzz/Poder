@@ -66,6 +66,7 @@ function buildPayload(): PairCatalogPayload {
       ...(c.parentId ? { parentId: c.parentId } : {}),
       ...(c.pinned === true ? { pinned: true } : {}),
       ...(c.archived === true ? { archived: true } : {}),
+      ...(c.pinned === true ? { pinned: true } : {}),
       // 当前模型与推理档位：手机切换器回显；缺省字段不占帧体积
       ...(c.lastProviderId ? { providerId: c.lastProviderId } : {}),
       ...(c.lastModelId ? { modelId: c.lastModelId } : {}),
@@ -260,6 +261,19 @@ export function bindPairCatalogSync(): void {
     switch (action.type) {
       case 'enqueue':
         store.enqueueMessage(action.sessionId, action.text, action.images);
+        break;
+      case 'session-rename':
+        store.renameConversation(action.sessionId, action.title);
+        break;
+      case 'session-pin': {
+        const target = useSessionsStore.getState().conversations[action.sessionId];
+        if (target && (target.pinned === true) !== action.pinned) {
+          store.togglePinConversation(action.sessionId);
+        }
+        break;
+      }
+      case 'session-remove':
+        void store.removeConversation(action.sessionId);
         break;
       case 'queue-remove':
         store.removeQueuedMessage(action.sessionId, action.messageId);

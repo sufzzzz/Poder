@@ -74,7 +74,11 @@ export type PairQueueAction =
   | { type: 'rewind'; sessionId: string; userIndexFromEnd: number; restoreFiles?: boolean }
   | { type: 'retry'; sessionId: string }
   | { type: 'task-stop'; sessionId: string; taskId: string }
-  | { type: 'subagent-stop'; sessionId: string; agentId: string };
+  | { type: 'subagent-stop'; sessionId: string; agentId: string }
+  // 会话管理：重命名 / 置顶 / 删除（与排队动作共用同一条 renderer 通道）
+  | { type: 'session-rename'; sessionId: string; title: string }
+  | { type: 'session-pin'; sessionId: string; pinned: boolean }
+  | { type: 'session-remove'; sessionId: string };
 
 /** 上下文占用；window 已知时（占用优先、会话其次）才下发 */
 export interface ContextUsage {

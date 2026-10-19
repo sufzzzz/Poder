@@ -106,6 +106,9 @@ export type PhoneToHost =
   | { type: 'retry'; sessionId: string }
   | { type: 'task-stop'; sessionId: string; taskId: string }
   | { type: 'subagent-stop'; sessionId: string; agentId: string }
+  | { type: 'session-rename'; sessionId: string; title: string }
+  | { type: 'session-pin'; sessionId: string; pinned: boolean }
+  | { type: 'session-remove'; sessionId: string }
   /** 登记/解除 Web Push 订阅：手机离线时桌面用它发系统推送 */
   | { type: 'push-subscribe'; subscription: PushSubscriptionJson }
   | { type: 'push-unsubscribe' }
@@ -184,6 +187,9 @@ export const PHONE_COMMAND_TYPES = [
   'retry',
   'task-stop',
   'subagent-stop',
+  'session-rename',
+  'session-pin',
+  'session-remove',
   'push-subscribe',
   'push-unsubscribe',
   'presence',

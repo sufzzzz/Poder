@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { base, boot } from '../boot';
-import type { AppState } from '../store';
+import { store, type AppState } from '../store';
 import { IconLogout, IconPlus, IconSearch, IconSettings } from './icons';
 
 const dayMs = 86400000;
@@ -49,21 +49,39 @@ export function Sidebar(props: {
 }) {
   const { state, onNew, onOpen, onSettings } = props;
   const [query, setQuery] = useState('');
+  const [menuId, setMenuId] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
 
   const groups = useMemo(() => {
-    const entries = [...state.catalog]
-      .filter((e) => !query || (e.title ?? '').toLowerCase().includes(query.toLowerCase()))
+    const entries = [...state.catalog].filter(
+      (e) => !query || (e.title ?? '').toLowerCase().includes(query.toLowerCase())
+    );
+    // 置顶会话单独一组；顺序优先用 host 的 pinnedOrder，没有就按更新时间
+    const pinned = entries
+      .filter((e) => e.pinned === true)
+      .sort((a, b) => {
+        const ia = state.pinnedOrder.indexOf(a.id);
+        const ib = state.pinnedOrder.indexOf(b.id);
+        if (ia >= 0 && ib >= 0) return ia - ib;
+        if (ia >= 0) return -1;
+        if (ib >= 0) return 1;
+        return (b.updatedAt ?? 0) - (a.updatedAt ?? 0);
+      });
+    const rest = entries
+      .filter((e) => e.pinned !== true)
       .sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0));
-    const buckets = new Map<string, typeof entries>();
-    for (const entry of entries) {
+    const buckets = new Map<string, typeof rest>();
+    for (const entry of rest) {
       const label = groupLabel(entry.updatedAt ?? 0);
       const list = buckets.get(label) ?? [];
       list.push(entry);
       buckets.set(label, list);
     }
     const order = ['今天', '昨天', '本周', '更早'];
-    return order.filter((k) => buckets.has(k)).map((k) => ({ label: k, items: buckets.get(k)! }));
-  }, [state.catalog, query]);
+    const bucketsOut = order.filter((k) => buckets.has(k)).map((k) => ({ label: k, items: buckets.get(k)! }));
+    return pinned.length > 0 ? [{ label: '置顶', items: pinned }, ...bucketsOut] : bucketsOut;
+  }, [state.catalog, state.pinnedOrder, query]);
 
   const conn = state.link;
   const connLabel =
@@ -116,11 +134,48 @@ export function Sidebar(props: {
             {group.items.map((entry) => {
               const active = entry.id === state.activeId;
               const unread = state.unread[entry.id] && !active;
+              const pinned = entry.pinned === true;
               return (
-                <div key={entry.id} className={`session-item${active ? ' active' : ''}`} onClick={() => onOpen(entry.id)}>
+                <div
+                  key={entry.id}
+                  className={`session-item${active ? ' active' : ''}`}
+                  onClick={() => {
+                    if (renamingId !== entry.id) onOpen(entry.id);
+                  }}
+                >
                   <div className="session-row">
                     <span className={unread ? 'dot unread' : statusClass(entry.status)} />
-                    <span className="session-title">{entry.title || '未命名会话'}</span>
+                    {renamingId === entry.id ? (
+                      <input
+                        className="session-rename"
+                        autoFocus
+                        value={renameValue}
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            store.renameSession(entry.id, renameValue);
+                            setRenamingId(null);
+                          } else if (e.key === 'Escape') {
+                            setRenamingId(null);
+                          }
+                        }}
+                        onBlur={() => setRenamingId(null)}
+                      />
+                    ) : (
+                      <span className="session-title">{entry.title || '未命名会话'}</span>
+                    )}
+                    {pinned && <span className="pin-tag">置顶</span>}
+                    <button
+                      className="session-more"
+                      title="更多操作"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setMenuId(menuId === entry.id ? null : entry.id);
+                      }}
+                    >
+                      ⋯
+                    </button>
                   </div>
                   <div className="session-meta">
                     <span>{relTime(entry.updatedAt ?? 0)}</span>
@@ -131,6 +186,39 @@ export function Sidebar(props: {
                       </>
                     )}
                   </div>
+                  {menuId === entry.id && (
+                    <div className="session-menu" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => {
+                          setMenuId(null);
+                          setRenameValue(entry.title ?? '');
+                          setRenamingId(entry.id);
+                        }}
+                      >
+                        重命名
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMenuId(null);
+                          store.setSessionPinned(entry.id, !pinned);
+                        }}
+                      >
+                        {pinned ? '取消置顶' : '置顶'}
+                      </button>
+                      <button
+                        className="danger"
+                        onClick={() => {
+                          setMenuId(null);
+                          const name = entry.title || '未命名会话';
+                          if (window.confirm(`删除会话「${name}」？该操作不可撤销。`)) {
+                            store.removeSession(entry.id);
+                          }
+                        }}
+                      >
+                        删除
+                      </button>
+                    </div>
+                  )}
                 </div>
               );
             })}

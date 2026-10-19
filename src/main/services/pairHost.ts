@@ -1035,6 +1035,17 @@ async function handleFrame(
       onSessionConfig?.(command);
       break;
     case 'enqueue':
+    case 'session-rename': {
+      const title = command.title.trim().slice(0, 120);
+      if (title) onQueueAction?.({ type: 'session-rename', sessionId: command.sessionId, title });
+      break;
+    }
+    case 'session-pin':
+      onQueueAction?.({ type: 'session-pin', sessionId: command.sessionId, pinned: command.pinned });
+      break;
+    case 'session-remove':
+      onQueueAction?.({ type: 'session-remove', sessionId: command.sessionId });
+      break;
     case 'queue-remove':
     case 'queue-update':
     case 'queue-send-now':
