@@ -88,6 +88,14 @@ export function Sidebar(props: {
     conn === 'online' ? '已连接' : conn === 'connecting' ? '连接中' : conn === 'reconnecting' ? '重连中' : conn === 'replaced' ? '已在别处连接' : conn === 'unauthorized' ? '凭据失效' : conn === 'offline' ? '已断开' : '未连接';
   const connDot = conn === 'online' ? 'dot running' : conn === 'unauthorized' ? 'dot error' : 'dot waiting';
 
+  const themeMode = state.themeMode;
+  const themeName = themeMode === 'light' ? '浅色' : themeMode === 'dark' ? '深色' : '跟随系统';
+  const themeGlyph = themeMode === 'light' ? '☀' : themeMode === 'dark' ? '☾' : '◐';
+  const cycleTheme = () => {
+    const next = themeMode === 'system' ? 'light' : themeMode === 'light' ? 'dark' : 'system';
+    store.setTheme(next);
+  };
+
   return (
     <aside className="sidebar">
       <div className="sidebar-top">
@@ -233,6 +241,9 @@ export function Sidebar(props: {
         </span>
         <span className="spacer" />
         <span className="user-chip">{boot.user || String(state.host?.userName ?? '')}</span>
+        <button className="icon-btn theme-btn" title={`主题：${themeName}（点击切换）`} onClick={cycleTheme}>
+          {themeGlyph}
+        </button>
         <a className="icon-btn" title="退出登录" href={`${base}/logout`}>
           <IconLogout size={15} />
         </a>

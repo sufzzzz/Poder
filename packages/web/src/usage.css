@@ -86,7 +86,7 @@
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--panel-2);
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 12px 28px var(--shadow-lift);
 }
 
 .session-menu button {

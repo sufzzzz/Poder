@@ -24,6 +24,25 @@ export interface Draft {
   thinkingLevel: string;
 }
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_KEY = 'enso-theme';
+
+export function readThemeMode(): ThemeMode | null {
+  try {
+    const value = localStorage.getItem(THEME_KEY);
+    return value === 'light' || value === 'dark' || value === 'system' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+/** 把偏好落到 <html data-theme>，system 时读系统配色 */
+export function applyThemeMode(mode: ThemeMode): void {
+  const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+}
+
 export interface AppState {
   link: LinkState;
   linkDetail?: string;
@@ -31,6 +50,8 @@ export interface AppState {
   catalog: CatalogEntry[];
   /** 置顶会话的手动顺序（host 随目录下发） */
   pinnedOrder: string[];
+  /** 主题偏好：用户显式选择优先，否则跟随系统 */
+  themeMode: ThemeMode;
   projects: ProjectEntry[];
   providers: ProviderEntry[];
   appearance: Record<string, any>;
@@ -51,6 +72,7 @@ export class AppStore {
     host: {},
     catalog: [],
     pinnedOrder: [],
+    themeMode: readThemeMode() ?? 'system',
     projects: [],
     providers: [],
     appearance: {},
@@ -372,6 +394,16 @@ export class AppStore {
   setSessionPinned(sessionId: string, pinned: boolean): void {
     if (!sessionId) return;
     this.link?.send({ type: 'session-pin', sessionId, pinned });
+  }
+
+  setTheme(mode: ThemeMode): void {
+    try {
+      localStorage.setItem(THEME_KEY, mode);
+    } catch {
+      /* 隐私模式下写入失败也无妨，本次生效即可 */
+    }
+    applyThemeMode(mode);
+    this.patch({ themeMode: mode });
   }
 
   removeSession(sessionId: string): void {
