@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { HostToPhone, PairBotRunState } from '@enso/pair';
 import { INBOX_DISMISSIBLE, visibleInbox } from '@shared/bots/inbox';
@@ -418,22 +418,59 @@ function botConversation(sessionId: string) {
   return conversation?.bot ? conversation : undefined;
 }
 
-async function coldSnapshot(sessionId: string): Promise<RendererAgentEvent | null> {
-  const conversation = botConversation(sessionId);
-  if (!conversation || !botModeEnabled()) return null;
+/**
+ * 任意会话的冷历史快照：worker 还没拉起这条会话时直接读会话文件合成，
+ * 供手机/网页端订阅旧会话时立刻拿到历史（Bot 与普通会话共用）。
+ */
+/**
+ * 冷会话在 SourceAuthorityRegistry 里查不到，退回到 settings.json 里的
+ * enso-conversations.state.conversations[id].sessionFile。
+ */
+function sessionFileFromSettings(sessionId: string): string | undefined {
+  try {
+    const file = path.join(app.getPath('userData'), 'settings.json');
+    if (!existsSync(file)) return undefined;
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Record<string, any>;
+    const entry = parsed?.['enso-conversations']?.state?.conversations?.[sessionId];
+    const sessionFile = entry?.sessionFile;
+    return typeof sessionFile === 'string' && sessionFile ? sessionFile : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function coldHistory(sessionId: string): Promise<RendererAgentEvent | null> {
+  const conversation = getSourceAuthorityRegistry()?.conversation(sessionId);
+  const sessionFile = conversation?.sessionFile ?? sessionFileFromSettings(sessionId);
+  if (!sessionFile) {
+    console.warn('[pair] cold history: no session file for', sessionId);
+    return null;
+  }
+  // worker 已经拉起这条会话时，让它自己的快照说话，别用磁盘版本覆盖实时状态
+  if (agentSessionIndex.isAlive(sessionId)) {
+    console.info('[pair] cold history: alive, skip', sessionId);
+    return null;
+  }
   const sessionDir = path.join(app.getPath('userData'), 'agent', 'sessions');
-  const file = resolveParentHistoryFile(sessionDir, conversation.sessionFile);
+  const file = resolveParentHistoryFile(sessionDir, sessionFile);
   let messages: ReturnType<typeof projectParentHistoryAll> = [];
   if (file && existsSync(file)) {
     const { SessionManager } = await import('@earendil-works/pi-coding-agent');
     messages = projectParentHistoryAll(SessionManager.open(file, sessionDir).getBranch());
   }
+  console.info('[pair] cold history', sessionId, 'file=', file, 'messages=', messages.length);
   // 无 generation：会话随后被拉起时 worker 快照带新 generation，手机按换代重订阅
   return {
     type: 'snapshot',
     partial: true,
     sessions: [{ identity: { sessionId }, sessionId, status: 'idle', messages, commands: [] }],
   } as unknown as RendererAgentEvent;
+}
+
+async function coldSnapshot(sessionId: string): Promise<RendererAgentEvent | null> {
+  const conversation = botConversation(sessionId);
+  if (!conversation || !botModeEnabled()) return null;
+  return coldHistory(sessionId);
 }
 
 export function registerPairBotHandlers(): void {
@@ -451,6 +488,7 @@ export function registerPairBotHandlers(): void {
         agentSessionIndex.isAlive(sessionId)
       ),
     coldSnapshot,
+    coldHistory,
     sessionTitle(sessionId) {
       const bot = botConversation(sessionId)?.bot;
       return bot ? getBotServices()?.bots.get(bot.botId)?.name : undefined;

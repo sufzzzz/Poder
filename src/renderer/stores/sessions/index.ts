@@ -419,7 +419,10 @@ interface SessionsState {
   resetBtwSession(id: string, rolePrompt: string): Promise<void>;
   disposeBtwConversation(id: string): Promise<void>;
   /** app 重启后从 jsonl 恢复会话并回放历史（未 started 且有 sessionFile 时有效） */
-  resumeConversation(id: string): Promise<void>;
+  resumeConversation(
+    id: string,
+    options?: { allowModelFallback?: boolean }
+  ): Promise<void>;
   /** 上滑加载更早历史：只读 jsonl，不 spawn */
   loadOlderHistory(id: string): Promise<void>;
   /**
@@ -3252,7 +3255,7 @@ export const useSessionsStore = create<SessionsState>()(
           );
         },
 
-        async resumeConversation(id) {
+        async resumeConversation(id, options) {
           const conversation = get().conversations[id];
           if (
             !conversation ||
@@ -3282,11 +3285,25 @@ export const useSessionsStore = create<SessionsState>()(
           const hasRememberedModel = Boolean(
             conversation.lastProviderId && conversation.lastModelId
           );
+          // 手机/网页端恢复历史会话时允许模型兜底：模型表改名后旧 id 解析不到，
+          // 不放行就会永远恢复不了（桌面端仍保持「不静默改模」）。
+          const allowModelFallback = Boolean(options?.allowModelFallback);
           if (
             resolution.source === 'none' ||
-            (hasRememberedModel && resolution.source !== 'session')
+            (hasRememberedModel && resolution.source !== 'session' && !allowModelFallback)
           ) {
             return;
+          }
+          if (hasRememberedModel && resolution.source !== 'session') {
+            console.info(
+              '[sessions] resume fallback model',
+              id,
+              conversation.lastProviderId,
+              conversation.lastModelId,
+              '->',
+              resolution.providerId,
+              resolution.modelId
+            );
           }
           const { providerId, modelId } = resolution;
           // 隔离会话：resume 前先校验 worktree 还在不在（可能被 prune/手动删除）。

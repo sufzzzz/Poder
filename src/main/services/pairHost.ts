@@ -227,6 +227,11 @@ export function setPairResumeListener(listener: (sessionId: string) => void): vo
   onResumeRequest = listener;
 }
 
+/** 手机/网页端对 worker 里还没有的会话发命令时，先请渲染层恢复（与订阅同一路径） */
+export function requestPairSessionResume(sessionId: string): void {
+  onResumeRequest?.(sessionId);
+}
+
 /**
  * 手机侧只持有裸 sessionId，而 agentHost 的会话命令已收紧为 exact identity（带 generation）。
  * 身份解析与 spawn 准入属于策略，留在 ipc/agent.ts；pairHost 只做传输，通过此桥调用。
@@ -293,6 +298,8 @@ export interface PairBotPort {
   sessionAccess(sessionId: string): BotSessionAccess;
   /** worker 无投影的 Bot 会话：由会话文件合成 snapshot 事件 */
   coldSnapshot(sessionId: string): Promise<RendererAgentEvent | null>;
+  /** 冷会话（worker 无投影）时用会话文件合成历史快照 */
+  coldHistory(sessionId: string): Promise<RendererAgentEvent | null>;
   /** 推送标题：Bot 会话不在目录里 */
   sessionTitle(sessionId: string): string | undefined;
   observe(event: RendererAgentEvent): void;
@@ -328,7 +335,17 @@ function snapshotForPhone(sessionId: string, resume: boolean): void {
       .catch((error) => console.warn('[pair] bot session snapshot failed', error));
     return;
   }
-  if (access === 'none' && resume) onResumeRequest?.(sessionId);
+  if (access === 'none' && resume) {
+    onResumeRequest?.(sessionId);
+    // worker 里还没有这条会话的投影，订阅只会拿到空快照；
+    // 先用会话文件合成一份历史，手机/网页端打开旧会话才不会空白。
+    void botPort
+      ?.coldHistory?.(sessionId)
+      .then((event) => {
+        if (event) forwardSnapshot(event);
+      })
+      .catch((error) => console.warn('[pair] cold history snapshot failed', error));
+  }
   requestSnapshot(sessionId);
 }
 

@@ -122,7 +122,10 @@ import {
 } from '../services/memoryHost';
 import { maybeNotify, maybeNotifyBot, setViewedSession } from '../services/notifications';
 import { readStoredOauthCredentialKeys } from '../services/oauthProviders';
-import { forwardAgentEvent, setPairAgentBridge } from '../services/pairHost';
+import {
+  forwardAgentEvent,
+  setPairAgentBridge,
+} from '../services/pairHost';
 import {
   configurePairSessionHost,
   handlePairHeadlessAgentEvent,
@@ -372,6 +375,88 @@ function spawnBoundSession(
   );
 }
 
+interface ColdResumeEntry {
+  sessionFile: string;
+  providerId?: string;
+  modelId?: string;
+  cwd?: string;
+  reasoningEnabled?: boolean;
+  thinkingLevel?: string;
+}
+
+/**
+ * 手机续聊的冷会话：渲染层没有这条会话时，按 settings.json 里落盘的元数据恢复。
+ * 只用于 pair 通道（不受 renderer 的 persistedRootSpawn 约束，但要过会话登记检查）。
+ */
+function coldResumeEntry(sessionId: string): ColdResumeEntry | null {
+  try {
+    const file = path.join(app.getPath('userData'), 'settings.json');
+    if (!existsSync(file)) return null;
+    const parsed = JSON.parse(readFileSync(file, 'utf8')) as Record<string, any>;
+    const conversation = parsed?.['enso-conversations']?.state?.conversations?.[sessionId];
+    if (!conversation || typeof conversation.sessionFile !== 'string') return null;
+    const projects = parsed?.['enso-settings']?.state?.projects;
+    const project = Array.isArray(projects)
+      ? projects.find((item: any) => item?.id === conversation.projectId)
+      : undefined;
+    return {
+      sessionFile: conversation.sessionFile,
+      providerId: typeof conversation.lastProviderId === 'string' ? conversation.lastProviderId : undefined,
+      modelId: typeof conversation.lastModelId === 'string' ? conversation.lastModelId : undefined,
+      cwd: typeof project?.path === 'string' ? project.path : undefined,
+      reasoningEnabled:
+        typeof conversation.reasoningEnabled === 'boolean' ? conversation.reasoningEnabled : undefined,
+      thinkingLevel:
+        typeof conversation.thinkingLevel === 'string' ? conversation.thinkingLevel : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const coldResumeInFlight = new Set<string>();
+
+async function resumeColdPairSession(sessionId: string): Promise<boolean> {
+  if (exactIdentity(sessionId) && agentSessionIndex.isAlive(sessionId)) return true;
+  if (coldResumeInFlight.has(sessionId)) return false;
+  const entry = coldResumeEntry(sessionId);
+  if (!entry?.providerId || !entry.modelId || !entry.cwd) {
+    console.warn('[pair] cold resume: incomplete metadata', sessionId);
+    return false;
+  }
+  coldResumeInFlight.add(sessionId);
+  try {
+    const identity = rootIdentity(sessionId) ?? { sessionId, generation: randomUUID() };
+    agentSessionIndex.prepareParent(identity);
+    let credentialKeys: ReadonlySet<string>;
+    try {
+      credentialKeys = await readStoredOauthCredentialKeys();
+    } catch {
+      credentialKeys = new Set<string>();
+    }
+    const result = await spawnBoundSession(
+      identity,
+      {
+        sessionId,
+        providerId: entry.providerId,
+        modelId: entry.modelId,
+        cwd: entry.cwd,
+        resumeFile: entry.sessionFile,
+        ...(entry.reasoningEnabled !== undefined ? { reasoningEnabled: entry.reasoningEnabled } : {}),
+        ...(entry.thinkingLevel ? { thinkingLevel: entry.thinkingLevel as AgentSpawnRequest['thinkingLevel'] } : {}),
+      },
+      credentialKeys
+    );
+    if (!result.ok) console.warn('[pair] cold resume failed', sessionId, result.error);
+    return result.ok;
+  } catch (error) {
+    console.warn('[pair] cold resume error', sessionId, error);
+    return false;
+  } finally {
+    coldResumeInFlight.delete(sessionId);
+  }
+}
+
 function parseSpawnRequest(value: unknown): AgentSpawnRequest | null {
   const request = asRecord(value);
   if (!request) return null;
@@ -617,19 +702,74 @@ function cacheBotScreenshots(
   }
 }
 
+/**
+ * 手机/网页端对「worker 里还没有投影」的会话发 prompt：
+ * 先请渲染层恢复（与订阅同路径），恢复出来后再补发这条消息。
+ */
+const pendingPairPrompts = new Map<
+  string,
+  { text: string; images?: AttachedImage[]; attempts: number; timer: NodeJS.Timeout }
+>();
+
+function queuePairPromptAfterResume(
+  sessionId: string,
+  text: string,
+  images?: AttachedImage[]
+): void {
+  const pending = pendingPairPrompts.get(sessionId);
+  if (pending) {
+    // 恢复期间又发了一条：以最新一条为准
+    pending.text = text;
+    pending.images = images;
+    return;
+  }
+  const entry = {
+    text,
+    images,
+    attempts: 0,
+    timer: setTimeout(() => {}, 0),
+  };
+  pendingPairPrompts.set(sessionId, entry);
+  const tick = () => {
+    const current = pendingPairPrompts.get(sessionId);
+    if (!current) return;
+    const identity = exactIdentity(sessionId);
+    if (identity && agentSessionIndex.isAlive(sessionId)) {
+      pendingPairPrompts.delete(sessionId);
+      promptSession(identity, current.text, current.images);
+      return;
+    }
+    current.attempts += 1;
+    if (current.attempts >= 40) {
+      pendingPairPrompts.delete(sessionId);
+      console.warn('[pair] prompt dropped: session never became ready', sessionId);
+      return;
+    }
+    current.timer = setTimeout(tick, 500);
+  };
+  entry.timer = setTimeout(tick, 500);
+}
+
 function wirePairAgentBridge(): void {
   setPairAgentBridge({
     prompt: (sessionId, text, images) => {
       const rejected = botControlError(sessionId);
       if (rejected) return rejected;
       const identity = exactIdentity(sessionId);
-      if (identity) promptSession(identity, text, images);
+      if (identity && agentSessionIndex.isAlive(sessionId)) {
+        promptSession(identity, text, images);
+        return;
+      }
+      // 冷会话由 main 直接按落盘元数据拉起：渲染层拉起的会话在 pair 通道里
+      // 身份对不上（会 spawn 但 prompt 不生效），所以这里不再请渲染层恢复。
+      void resumeColdPairSession(sessionId);
+      queuePairPromptAfterResume(sessionId, text, images);
     },
     steer: (sessionId, text, images) => {
       const rejected = botControlError(sessionId);
       if (rejected) return rejected;
       const identity = exactIdentity(sessionId);
-      if (identity) steerSession(identity, text, images);
+      if (identity && agentSessionIndex.isAlive(sessionId)) steerSession(identity, text, images);
     },
     abort: (sessionId) => {
       const identity = exactIdentity(sessionId);
@@ -684,13 +824,20 @@ function wirePairSessionHost(): void {
       const rejected = botControlError(sessionId);
       if (rejected) return rejected;
       const identity = exactIdentity(sessionId);
-      if (identity) promptSession(identity, text, images);
+      if (identity && agentSessionIndex.isAlive(sessionId)) {
+        promptSession(identity, text, images);
+        return;
+      }
+      // 冷会话由 main 直接按落盘元数据拉起：渲染层拉起的会话在 pair 通道里
+      // 身份对不上（会 spawn 但 prompt 不生效），所以这里不再请渲染层恢复。
+      void resumeColdPairSession(sessionId);
+      queuePairPromptAfterResume(sessionId, text, images);
     },
     steer: (sessionId, text, images) => {
       const rejected = botControlError(sessionId);
       if (rejected) return rejected;
       const identity = exactIdentity(sessionId);
-      if (identity) steerSession(identity, text, images);
+      if (identity && agentSessionIndex.isAlive(sessionId)) steerSession(identity, text, images);
     },
     abort: (sessionId) => {
       const identity = exactIdentity(sessionId);

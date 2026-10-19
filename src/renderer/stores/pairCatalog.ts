@@ -235,7 +235,7 @@ export function bindPairCatalogSync(): void {
   window.electronAPI.pair.onResumeSession((sessionId) => {
     setPairViewedSession(sessionId);
     useSessionsStore.getState().markConversationRead(sessionId);
-    void useSessionsStore.getState().resumeConversation(sessionId);
+    void useSessionsStore.getState().resumeConversation(sessionId, { allowModelFallback: true });
   });
   // 手机新建的会话登记进桌面列表；不登记的话它的 agent 事件会因「未知会话」被丢弃
   window.electronAPI.pair.onSessionCreated((session) => {

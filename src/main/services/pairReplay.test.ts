@@ -617,6 +617,7 @@ describe('pairHost Bot 会话接线', () => {
       resync: vi.fn(),
       sessionAccess: vi.fn(() => 'none' as const),
       coldSnapshot: vi.fn(async () => null),
+      coldHistory: vi.fn(async () => null),
       sessionTitle: vi.fn(() => undefined),
       observe: vi.fn(),
     };
