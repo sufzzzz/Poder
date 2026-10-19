@@ -383,6 +383,8 @@ importers:
         specifier: ^4.127.0
         version: 4.127.0(@cloudflare/workers-types@4.20260702.1)
 
+  packages/web: {}
+
 packages:
 
   '@antfu/install-pkg@1.1.0':
