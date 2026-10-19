@@ -46,3 +46,4 @@ __pycache__/
 resources/rtk/*/rtk
 resources/rtk/*/rtk.exe
 resources/rtk/*/rtk.tmp-*
+packages/web/node_modules

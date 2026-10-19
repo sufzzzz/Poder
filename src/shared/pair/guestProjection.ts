@@ -4,6 +4,7 @@ import type {
   BackgroundTaskInfo,
   ProjectedMessage,
   SessionSnapshot,
+  SessionUsageTotals,
   SubagentInfo,
 } from '@shared/types/agent';
 import { applyRetryEvent, applyTaskEvent, type RetryInfo } from './taskProjection';
@@ -33,6 +34,11 @@ export interface GuestSessionView {
    * 渲染前须经 localCompactionNoticeIndex() 换算成数组下标。
    */
   compactionNoticeAt?: number;
+  /** 令牌 / 缓存 / 速度统计：worker 按完整记录算，host 只对当前订阅会话下发 */
+  usageTotals?: SessionUsageTotals;
+  /** 上下文窗口大小 / 占用：随 session-meta 事件下发，用来算占用百分比 */
+  contextWindow?: number;
+  occupancy?: unknown;
 }
 
 /**
@@ -116,6 +122,13 @@ export function applyGuestEvent(
     case 'ask-resolved':
       view.asks = view.asks.filter((a) => a.requestId !== event.requestId);
       break;
+    case 'session-meta': {
+      // 用量与上下文占用只在 session-meta 上带，错过它前端就永远算不出百分比
+      if (event.usageTotals) view.usageTotals = event.usageTotals as SessionUsageTotals;
+      if (typeof event.contextWindow === 'number') view.contextWindow = event.contextWindow;
+      if (event.occupancy !== undefined) view.occupancy = event.occupancy;
+      break;
+    }
     case 'compaction': {
       const state = event.state as string;
       view.compaction = state === 'queued' ? 'queued' : state === 'start' ? 'running' : undefined;
@@ -176,6 +189,9 @@ export function applyGuestSnapshot(
         compaction: snap.compaction,
         // 压完提示锚点：host 有值才带；旧 host / 未压过则沿用，重连不丢提示
         compactionNoticeAt: snap.compactionNoticeAt ?? sessions.get(id)?.compactionNoticeAt,
+        usageTotals: snap.usageTotals ?? sessions.get(id)?.usageTotals,
+        contextWindow: snap.contextWindow ?? sessions.get(id)?.contextWindow,
+        occupancy: snap.occupancy ?? sessions.get(id)?.occupancy,
       },
       lastIndex: base + incoming.length - 1,
     });
