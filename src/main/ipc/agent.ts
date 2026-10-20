@@ -416,6 +416,11 @@ function coldResumeEntry(sessionId: string): ColdResumeEntry | null {
 
 const coldResumeInFlight = new Set<string>();
 
+/** 手机订阅冷会话时由 main 直接拉起：渲染层拉起的会话在 pair 通道里 prompt 不生效 */
+export async function resumePairSessionFromHost(sessionId: string): Promise<boolean> {
+  return resumeColdPairSession(sessionId);
+}
+
 async function resumeColdPairSession(sessionId: string): Promise<boolean> {
   if (exactIdentity(sessionId) && agentSessionIndex.isAlive(sessionId)) return true;
   if (coldResumeInFlight.has(sessionId)) return false;

@@ -24,6 +24,7 @@ import {
   startPairing,
   updatePairCatalog,
 } from '../services/pairHost';
+import { resumePairSessionFromHost } from './agent';
 import { isPairScope } from '../services/pairScope';
 import {
   adoptPairSessionHeadless,
@@ -43,8 +44,9 @@ export function registerPairHandlers(): void {
 
   // 手机订阅历史会话时，请渲染层按桌面同路径恢复（worker 里才有投影可发）
   setPairResumeListener((sessionId) => {
-    if (isMainWindowAlive()) sendToAllWindows(IPC_CHANNELS.PAIR_RESUME_SESSION, sessionId);
-    else void resumePairSessionHeadless(sessionId);
+    // 由 main 直接拉起：worker 启动后立刻下发 session-meta（含上下文占用），
+    // 网页端口一打开就有用量面板；渲染层拉起的会话在 pair 通道里 prompt 不生效。
+    void resumePairSessionFromHost(sessionId);
   });
 
   // 手机新建会话后请渲染层登记，否则桌面列表看不到它、其事件也会被丢弃
