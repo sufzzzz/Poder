@@ -114,7 +114,7 @@ function DraftHome({ state }: { state: any }) {
         <div className="draft-inner">
           {draft ? (
             <div className="draft-head">
-              <div className="empty-logo small">E</div>
+              <div className="empty-logo small">P</div>
               <h1>新会话</h1>
               <p>
                 在 <b>{project?.name ?? project?.path ?? '默认工作区'}</b> 里开始。
@@ -123,7 +123,7 @@ function DraftHome({ state }: { state: any }) {
             </div>
           ) : (
             <div className="draft-head">
-              <div className="empty-logo">E</div>
+              <div className="empty-logo">P</div>
               <h1>今天想让它做什么？</h1>
               <p>
                 左侧选择会话继续，或直接在这里输入——它会带着工具在 VPS 的桌面上干活。
@@ -307,7 +307,7 @@ function ChatHead({
       </button>
       <div className="chat-head-main">
         <div className="chat-title">
-          {drafting ? '新会话' : entry?.title ?? 'EnsoCode'}
+          {drafting ? '新会话' : entry?.title ?? 'Poder'}
           {!drafting && running && <span className="pill running">运行中</span>}
           {!drafting && waiting && <span className="pill waiting">待确认</span>}
         </div>

@@ -100,8 +100,8 @@ export function Sidebar(props: {
     <aside className="sidebar">
       <div className="sidebar-top">
         <div className="brand">
-          <div className="brand-mark">E</div>
-          <div className="brand-name">EnsoCode</div>
+          <div className="brand-mark">P</div>
+          <div className="brand-name">Poder</div>
           <button className="icon-btn" title="设置" onClick={onSettings}>
             <IconSettings size={15} />
           </button>

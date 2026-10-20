@@ -126,7 +126,7 @@ export function Settings({ state, onBack }: { state: AppState; onBack: () => voi
   return (
     <div className="settings">
       <nav className="settings-nav">
-        <div className="settings-nav-title">EnsoCode 设置</div>
+        <div className="settings-nav-title">Poder 设置</div>
         {TABS.map((item) => {
           const Icon = item.icon;
           return (
@@ -187,7 +187,7 @@ function OverviewTab({ overview, state, onReload }: { overview: Overview | null;
   return (
     <>
       <h1>概览</h1>
-      <p className="lead">这台 VPS 上的 EnsoCode 桌面端与网关状态。</p>
+      <p className="lead">这台 VPS 上的 Poder 桌面端与网关状态。</p>
 
       <div className="card">
         <h2>连接</h2>
