@@ -222,3 +222,62 @@
   font-size: 11px;
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- 代码块复制 ---------- */
+.code-wrap {
+  position: relative;
+}
+
+.code-wrap > pre {
+  margin: 0;
+}
+
+.copy-btn {
+  padding: 3px 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition:
+    color 0.12s ease,
+    border-color 0.12s ease,
+    opacity 0.12s ease;
+}
+
+.copy-btn:hover {
+  color: var(--text);
+  border-color: var(--line-hover);
+}
+
+.copy-btn.done {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.copy-btn.failed {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.code-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 2;
+  opacity: 0;
+  backdrop-filter: blur(6px);
+}
+
+.code-wrap:hover .code-copy,
+.code-copy:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .code-copy {
+    opacity: 0.9;
+  }
+}
