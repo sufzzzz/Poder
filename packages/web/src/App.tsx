@@ -81,8 +81,6 @@ export function App() {
         <ChatHead
           state={state}
           entry={entry}
-          usage={view?.usageTotals}
-          ctxPct={contextPercent(view)}
           drafting={drafting}
           onMenu={() => setSidebarOpen((v) => !v)}
         />
@@ -239,57 +237,14 @@ function TimelineScroller({ state, view, sessionId }: { state: any; view: any; s
   );
 }
 
-function formatTokens(value?: number): string {
-  if (!value || value < 0) return '0';
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return String(value);
-}
-
-/** 上下文占用百分比：占用结构随版本变过，这里把几种形态都兜住 */
-function contextPercent(view: any): number | undefined {
-  const occupancy = view?.occupancy;
-  if (typeof occupancy === 'number') return occupancy <= 1 ? occupancy * 100 : occupancy;
-  if (occupancy && typeof occupancy === 'object') {
-    const used = occupancy.used ?? occupancy.usedTokens;
-    const window = occupancy.window ?? occupancy.windowTokens ?? occupancy.limit ?? view?.contextWindow;
-    if (typeof used === 'number' && typeof window === 'number' && window > 0) return (used / window) * 100;
-    if (typeof occupancy.percent === 'number') return occupancy.percent;
-  }
-  return undefined;
-}
-
-/** 顶栏用量徽标的 tooltip：把缓命中、首字延迟、速度一并列出 */
-function usageHint(usage: any, ctxPct?: number): string {
-  const parts: string[] = [];
-  if (typeof ctxPct === 'number') parts.push(`上下文占用 ${Math.round(ctxPct)}%`);
-  if (usage) {
-    parts.push(`输入 ${usage.inputTokens ?? 0}`, `输出 ${usage.outputTokens ?? 0}`);
-    if (typeof usage.cacheHitPercent === 'number') parts.push(`缓存命中 ${Math.round(usage.cacheHitPercent)}%`);
-    if (typeof usage.ttftAvgMs === 'number') parts.push(`首字 ${Math.round(usage.ttftAvgMs)}ms`);
-    if (typeof usage.tokensPerSecond === 'number') parts.push(`${usage.tokensPerSecond.toFixed(1)} tok/s`);
-  }
-  return parts.join(' · ');
-}
-
 function ChatHead({
   state,
   entry,
-  usage,
-  ctxPct,
   drafting,
   onMenu
 }: {
   state: any;
   entry: any;
-  usage?: {
-    inputTokens?: number;
-    outputTokens?: number;
-    cacheHitPercent?: number;
-    ttftAvgMs?: number;
-    tokensPerSecond?: number;
-  };
-  ctxPct?: number;
   drafting: boolean;
   onMenu: () => void;
 }) {
@@ -334,16 +289,6 @@ function ChatHead({
         </div>
       </div>
       <div className="chat-actions">
-        {usage || typeof ctxPct === 'number' ? (
-          <span className="chat-usage mono" title={usageHint(usage, ctxPct)}>
-            {typeof ctxPct === 'number' && <span>上下文 {Math.round(ctxPct)}%</span>}
-            {usage ? <span>↑{formatTokens(usage.inputTokens)}</span> : null}
-            {usage ? <span>↓{formatTokens(usage.outputTokens)}</span> : null}
-            {usage && typeof usage.cacheHitPercent === 'number' && (
-              <span className="chat-usage-cache">缓存 {Math.round(usage.cacheHitPercent)}%</span>
-            )}
-          </span>
-        ) : null}
         {entry && !drafting && (
           <>
             <button className="icon-btn" title="重试上一轮" onClick={() => store.retry()}>

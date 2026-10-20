@@ -16,8 +16,20 @@ import {
   type AttachedItem
 } from '../attach';
 
-/** 上下文占用：优先用 host 下发的 occupancy，退化为 used/window */
-function contextUsage(view: any): { pct: number; used: number; window?: number; buckets?: Record<string, number> } | null {
+/** 上下文占用 + 令牌统计：都来自 host 的 session-meta */
+function contextUsage(view: any): {
+  pct: number;
+  used: number;
+  window?: number;
+  buckets?: Record<string, number>;
+  usage?: {
+    inputTokens?: number;
+    outputTokens?: number;
+    cacheHitPercent?: number;
+    ttftAvgMs?: number;
+    tokensPerSecond?: number;
+  };
+} | null {
   const occ = view?.occupancy;
   if (!occ || typeof occ !== 'object') return null;
   const used = typeof occ.used === 'number' ? occ.used : 0;
@@ -28,7 +40,7 @@ function contextUsage(view: any): { pct: number; used: number; window?: number; 
         ? view.contextWindow
         : undefined;
   const pct = typeof occ.percent === 'number' ? occ.percent : window ? (used / window) * 100 : 0;
-  return { pct, used, window, buckets: occ.buckets };
+  return { pct, used, window, buckets: occ.buckets, usage: view?.usageTotals };
 }
 
 function shortTokens(value?: number): string {
@@ -547,6 +559,15 @@ export function Composer({ state, running }: { state: AppState; running: boolean
                         </div>
                       ))}
                     </div>
+                    {ctx.usage && (
+                      <div className="ctx-foot">
+                        <span>↑ {shortTokens(ctx.usage.inputTokens)}</span>
+                        <span>↓ {shortTokens(ctx.usage.outputTokens)}</span>
+                        {typeof ctx.usage.cacheHitPercent === 'number' && (
+                          <span>缓存 {Math.round(ctx.usage.cacheHitPercent)}%</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

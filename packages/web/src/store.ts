@@ -66,30 +66,40 @@ type Listener = () => void;
 
 const VIEW_CACHE = new Map<string, GuestSessionView>();
 
-const OCCUPANCY_KEY = 'enso-occupancy';
+const CONTEXT_KEY = 'enso-ctx';
 
-function loadOccupancyCache(): Map<string, unknown> {
+interface CachedContext {
+  occupancy?: unknown;
+  usageTotals?: unknown;
+}
+
+function loadContextCache(): Map<string, CachedContext> {
   try {
-    const raw = localStorage.getItem(OCCUPANCY_KEY);
-    const parsed = raw ? (JSON.parse(raw) as Record<string, unknown>) : null;
+    const raw = localStorage.getItem(CONTEXT_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, CachedContext>) : null;
     return new Map(Object.entries(parsed && typeof parsed === 'object' ? parsed : {}));
   } catch {
     return new Map();
   }
 }
 
-/** 上次看到的上下文占用：刷新后先顶一阵，等 host 的 session-meta 到达再更新 */
-const OCCUPANCY_CACHE = loadOccupancyCache();
-let occupancyTimer: ReturnType<typeof setTimeout> | null = null;
+/** 上次看到的上下文占用与令牌统计：刷新后先顶一阵，等 host 的 session-meta 到达再更新 */
+const CONTEXT_CACHE = loadContextCache();
+let contextTimer: ReturnType<typeof setTimeout> | null = null;
 
-function rememberOccupancy(sessionId: string, occupancy: unknown): void {
-  if (!occupancy) return;
-  OCCUPANCY_CACHE.set(sessionId, occupancy);
-  if (occupancyTimer) return;
-  occupancyTimer = setTimeout(() => {
-    occupancyTimer = null;
+function rememberContext(sessionId: string, view: GuestSessionView | undefined): void {
+  if (!view) return;
+  if (!view.occupancy && !view.usageTotals) return;
+  const previous = CONTEXT_CACHE.get(sessionId) ?? {};
+  CONTEXT_CACHE.set(sessionId, {
+    occupancy: view.occupancy ?? previous.occupancy,
+    usageTotals: view.usageTotals ?? previous.usageTotals
+  });
+  if (contextTimer) return;
+  contextTimer = setTimeout(() => {
+    contextTimer = null;
     try {
-      localStorage.setItem(OCCUPANCY_KEY, JSON.stringify(Object.fromEntries(OCCUPANCY_CACHE)));
+      localStorage.setItem(CONTEXT_KEY, JSON.stringify(Object.fromEntries(CONTEXT_CACHE)));
     } catch {
       /* 配额或隐私模式：忽略即可 */
     }
@@ -128,9 +138,14 @@ export class AppStore {
   view(sessionId: string | null): GuestSessionView {
     if (!sessionId) return emptyGuestView();
     const current = VIEW_CACHE.get(sessionId) ?? emptyGuestView();
-    if (current.occupancy) return current;
-    const cached = OCCUPANCY_CACHE.get(sessionId);
-    return cached ? { ...current, occupancy: cached } : current;
+    if (current.occupancy && current.usageTotals) return current;
+    const cached = CONTEXT_CACHE.get(sessionId);
+    if (!cached) return current;
+    return {
+      ...current,
+      ...(current.occupancy ? {} : cached.occupancy ? { occupancy: cached.occupancy } : {}),
+      ...(current.usageTotals ? {} : cached.usageTotals ? { usageTotals: cached.usageTotals } : {})
+    } as GuestSessionView;
   }
 
   start(): void {
@@ -379,7 +394,7 @@ export class AppStore {
     for (const result of results) {
       VIEW_CACHE.set(result.id, result.view);
       if (typeof result.lastIndex === 'number') this.lastIndex.set(result.id, result.lastIndex);
-      rememberOccupancy(result.id, result.view.occupancy);
+      rememberContext(result.id, result.view);
     }
     this.bumpSessions();
   }
@@ -394,7 +409,7 @@ export class AppStore {
       for (const applied of applyGuestSnapshot(VIEW_CACHE, { sessions })) {
         VIEW_CACHE.set(applied.id, applied.view);
         if (typeof applied.lastIndex === 'number') this.lastIndex.set(applied.id, applied.lastIndex);
-        rememberOccupancy(applied.id, applied.view.occupancy);
+        rememberContext(applied.id, applied.view);
       }
       this.bumpSessions();
       return;
@@ -403,7 +418,7 @@ export class AppStore {
     if (!current) return;
     const result = applyGuestEvent(current, event);
     VIEW_CACHE.set(sessionId, result.view);
-    rememberOccupancy(sessionId, result.view.occupancy);
+    rememberContext(sessionId, result.view);
     if (typeof result.lastIndex === 'number') this.lastIndex.set(sessionId, result.lastIndex);
     const unread = sessionId === this.state.activeId ? this.state.unread : { ...this.state.unread, [sessionId]: true as const };
     this.bumpSessions({ unread });
