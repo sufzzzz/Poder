@@ -16,6 +16,57 @@ import {
   type AttachedItem
 } from '../attach';
 
+/** 上下文占用：优先用 host 下发的 occupancy，退化为 used/window */
+function contextUsage(view: any): { pct: number; used: number; window?: number; buckets?: Record<string, number> } | null {
+  const occ = view?.occupancy;
+  if (!occ || typeof occ !== 'object') return null;
+  const used = typeof occ.used === 'number' ? occ.used : 0;
+  const window =
+    typeof occ.contextWindow === 'number'
+      ? occ.contextWindow
+      : typeof view?.contextWindow === 'number'
+        ? view.contextWindow
+        : undefined;
+  const pct = typeof occ.percent === 'number' ? occ.percent : window ? (used / window) * 100 : 0;
+  return { pct, used, window, buckets: occ.buckets };
+}
+
+function shortTokens(value?: number): string {
+  if (!value || value < 0) return '0';
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
+  return String(value);
+}
+
+const CTX_BUCKETS: { key: string; label: string }[] = [
+  { key: 'conversation', label: '对话' },
+  { key: 'tools', label: '工具' },
+  { key: 'system', label: '设定' },
+  { key: 'instructions', label: '指令' },
+  { key: 'skills', label: '技能' },
+  { key: 'projectMemory', label: '记忆' },
+  { key: 'reminders', label: '提醒' },
+  { key: 'compaction', label: '压缩' }
+];
+
+/** 把 host 的 occupancy.buckets 折成「对话 / 工具 / 设定」三档，与 Memoh 一致 */
+function ctxRows(buckets?: Record<string, number>): { key: string; label: string; value: number }[] {
+  if (!buckets) return [];
+  const conversation = (buckets.conversation ?? 0) + (buckets.compaction ?? 0);
+  const tools = buckets.tools ?? 0;
+  const settings =
+    (buckets.system ?? 0) +
+    (buckets.instructions ?? 0) +
+    (buckets.skills ?? 0) +
+    (buckets.projectMemory ?? 0) +
+    (buckets.reminders ?? 0);
+  return [
+    { key: 'conversation', label: '对话', value: conversation },
+    { key: 'tools', label: '工具', value: tools },
+    { key: 'system', label: '设定', value: settings }
+  ].filter((row) => row.value > 0);
+}
+
 const THINKING_LEVELS = ['off', 'low', 'medium', 'high', 'max'];
 
 interface ModelOption {
@@ -55,7 +106,7 @@ function shortModel(name: string | null | undefined): string {
 export function Composer({ state, running }: { state: AppState; running: boolean }) {
   const draft = state.draft;
   const [text, setText] = useState('');
-  const [menu, setMenu] = useState<null | 'model' | 'think' | 'project'>(null);
+  const [menu, setMenu] = useState<null | 'model' | 'think' | 'project' | 'ctx'>(null);
   const [query, setQuery] = useState('');
   const [files, setFiles] = useState<AttachedItem[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -357,42 +408,6 @@ export function Composer({ state, running }: { state: AppState; running: boolean
             <IconPaperclip size={16} />
           </button>
           <div className="bar-chips">
-          <div className="chip-wrap" ref={menu === 'project' ? menuRef : undefined}>
-            {showProject && (
-              <button
-                className={`chip${menu === 'project' ? ' open' : ''}`}
-                title={`工作区：${project?.name ?? project?.path ?? '未选择'}`}
-                onClick={() => setMenu(menu === 'project' ? null : 'project')}
-              >
-                <IconChip size={13} />
-                <span className="chip-text project-label">{project?.name ?? project?.path ?? '选择工作区'}</span>
-                <IconChevron size={12} />
-              </button>
-            )}
-            {menu === 'project' && (
-              <div className="popover popover-left">
-                <div className="popover-title">工作区</div>
-                <div className="popover-list">
-                  {state.projects.length === 0 && <div className="popover-empty">桌面端还没上报工作区</div>}
-                  {state.projects.map((item) => (
-                    <button
-                      key={item.id}
-                      className={`popover-item${item.id === (draft ? draft.projectId : preview?.projectId) ? ' active' : ''}`}
-                      onClick={() => {
-                        if (draft) store.updateDraft({ projectId: item.id });
-                        else store.startDraft({ projectId: item.id });
-                        setMenu(null);
-                      }}
-                    >
-                      <span className="popover-item-main">{item.name ?? item.path ?? item.id}</span>
-                      <span className="popover-item-sub">{item.path ?? item.id}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="chip-wrap" ref={menu === 'model' ? menuRef : undefined}>
             <button
               className={`chip${menu === 'model' ? ' open' : ''}`}
@@ -482,6 +497,63 @@ export function Composer({ state, running }: { state: AppState; running: boolean
           </div>
           <span className="spacer" />
 
+          {(() => {
+            const ctx = contextUsage(store.view(state.activeId));
+            if (!ctx) return null;
+            const pct = Math.max(0, Math.min(100, ctx.pct));
+            const dash = (pct / 100) * 94.25;
+            return (
+              <div className="chip-wrap" ref={menu === 'ctx' ? menuRef : undefined}>
+                <button
+                  className={`ctx-ring${menu === 'ctx' ? ' open' : ''}`}
+                  title={`上下文占用 ${Math.round(pct)}%（点击看明细）`}
+                  onClick={() => setMenu(menu === 'ctx' ? null : 'ctx')}
+                >
+                  <svg viewBox="0 0 36 36" aria-hidden="true">
+                    <circle className="ctx-ring-track" cx="18" cy="18" r="15" />
+                    <circle
+                      className="ctx-ring-value"
+                      cx="18"
+                      cy="18"
+                      r="15"
+                      strokeDasharray={`${dash} 94.25`}
+                    />
+                  </svg>
+                  <span className="ctx-ring-num">{Math.round(pct)}%</span>
+                </button>
+                {menu === 'ctx' && (
+                  <div className="popover popover-right ctx-popover">
+                    <div className="ctx-head">
+                      <strong>{Math.round(pct)}%</strong>
+                      <span>
+                        ~{shortTokens(ctx.used)} / {ctx.window ? shortTokens(ctx.window) : '—'}
+                      </span>
+                    </div>
+                    <div className="ctx-bar">
+                      {ctxRows(ctx.buckets).map((row) => (
+                        <span
+                          key={row.key}
+                          className={`ctx-bar-seg ${row.key}`}
+                          style={{ width: `${ctx.window ? Math.max(1, (row.value / ctx.window) * 100) : 0}%` }}
+                        />
+                      ))}
+                    </div>
+                    <div className="ctx-rows">
+                      {ctxRows(ctx.buckets).map((row) => (
+                        <div className="ctx-row" key={row.key}>
+                          <span className={`ctx-dot ${row.key}`} />
+                          <span className="ctx-row-label">{row.label}</span>
+                          <span className="ctx-row-value">{shortTokens(row.value)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+
           {running ? (
             <button className="send-btn stop" title="停止" onClick={() => store.abort()}>
               <IconStop size={15} />
@@ -492,13 +564,6 @@ export function Composer({ state, running }: { state: AppState; running: boolean
             </button>
           )}
         </div>
-      </div>
-      <div className="hint">
-        {draft
-          ? '第一条消息发出后才会创建会话，之后可在左侧看到它'
-          : running
-            ? '运行中：Enter 会把消息排入队列'
-            : '对话在 VPS 上的桌面端执行，工具与文件都在那台机器上'}
       </div>
     </div>
   );

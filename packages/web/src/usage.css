@@ -108,3 +108,127 @@
 .session-menu button.danger {
   color: var(--danger);
 }
+
+/* ---------- 输入区：上下文占用环 ---------- */
+.popover-right {
+  left: auto;
+  right: 0;
+}
+
+.ctx-ring {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px 3px 5px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel-2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ctx-ring:hover,
+.ctx-ring.open {
+  border-color: var(--line-hover);
+  color: var(--text);
+}
+
+.ctx-ring svg {
+  width: 20px;
+  height: 20px;
+  transform: rotate(-90deg);
+}
+
+.ctx-ring-track {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 4;
+}
+
+.ctx-ring-value {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.25s ease;
+}
+
+.ctx-ring-num {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-popover {
+  width: 232px;
+  padding: 12px;
+}
+
+.ctx-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 9px;
+}
+
+.ctx-head strong {
+  font-size: 16px;
+  color: var(--text);
+}
+
+.ctx-head span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.ctx-bar {
+  display: flex;
+  gap: 1px;
+  height: 6px;
+  margin-bottom: 11px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: var(--panel-3);
+}
+
+.ctx-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.ctx-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.ctx-row-label {
+  color: var(--text-dim);
+}
+
+.ctx-row-value {
+  margin-left: auto;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.ctx-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.ctx-dot.conversation,
+.ctx-bar-seg.conversation {
+  background: #7c5cff;
+}
+
+.ctx-dot.tools,
+.ctx-bar-seg.tools {
+  background: #2f9dd8;
+}
+
+.ctx-dot.system,
+.ctx-bar-seg.system {
+  background: #38a169;
+}
