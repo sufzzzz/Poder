@@ -127,6 +127,9 @@ export class AppStore {
   private link: PairLink | null = null;
   private lastIndex = new Map<string, number>();
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 最近一次收到任何帧的时间：用来判断连接是否名存实亡 */
+  private lastFrameAt = Date.now();
+  private idleTimer: ReturnType<typeof setInterval> | null = null;
 
   subscribe = (fn: Listener): (() => void) => {
     this.listeners.add(fn);
@@ -150,6 +153,7 @@ export class AppStore {
 
   start(): void {
     if (this.link) return;
+    this.watchIdle();
     const device = boot.device;
     if (!device) {
       this.patch({ link: 'unauthorized', linkDetail: '尚未完成设备配对' });
@@ -158,7 +162,15 @@ export class AppStore {
     this.link = new PairLink(
       { pairId: device.pairId, token: device.token, contentKey: device.contentKey, relayUrl: device.relayUrl },
       (msg) => this.handle(msg),
-      (link, detail) => this.patch({ link, linkDetail: detail })
+      (link, detail) => {
+        const previous = this.state.link;
+        this.patch({ link, linkDetail: detail });
+        // 断线重连或宿主重启后，宿主那边的订阅关系已经没了：
+        // 不重新 subscribe 就一直收不到事件，页面会停在旧内容上。
+        if (link === 'online' && previous !== 'online' && this.state.activeId) {
+          this.subscribeTo(this.state.activeId);
+        }
+      }
     );
     this.link.connect();
   }
@@ -331,6 +343,7 @@ export class AppStore {
   // ---------------------------------------------------------------- messages
 
   private handle(msg: Record<string, any>): void {
+    this.lastFrameAt = Date.now();
     switch (msg.type) {
       case 'catalog':
         this.patch({
@@ -467,13 +480,33 @@ export class AppStore {
     delete unread[sessionId];
     this.patch({ activeId: sessionId, unread, draft: null });
     if (!VIEW_CACHE.has(sessionId)) VIEW_CACHE.set(sessionId, emptyGuestView());
+    this.subscribeTo(sessionId);
+  }
+
+  /** 订阅会话：有基线走增量，没有就显式要一份快照；连接未就绪时留给重连回调补发 */
+  private subscribeTo(sessionId: string): void {
+    if (!this.link || this.state.link !== 'online') return;
     const sinceIndex = this.lastIndex.get(sessionId);
     if (typeof sinceIndex === 'number' && VIEW_CACHE.get(sessionId)?.messages.size) {
-      this.link?.send({ type: 'subscribe', sessionId, sinceIndex });
+      this.link.send({ type: 'subscribe', sessionId, sinceIndex });
     } else {
       // 没有基线时显式要一份快照，否则宿主不会回 session-sync
-      this.link?.send({ type: 'subscribe', sessionId, sync: { requestId: `sync-${Date.now().toString(36)}` } });
+      this.link.send({ type: 'subscribe', sessionId, sync: { requestId: `sync-${Date.now().toString(36)}` } });
     }
+  }
+
+  /**
+   * 宿主重启/重连时中继链路不一定断，网页端会一直显示「已连接」却收不到任何事件。
+   * 这里做静默检测：一段时间没有任何帧，就按当前会话补发一次订阅（增量，代价很小）。
+   */
+  private watchIdle(): void {
+    if (this.idleTimer) return;
+    this.idleTimer = setInterval(() => {
+      if (this.state.link !== 'online' || !this.state.activeId) return;
+      if (Date.now() - this.lastFrameAt < 12000) return;
+      this.lastFrameAt = Date.now();
+      this.subscribeTo(this.state.activeId);
+    }, 10000);
   }
 
   closeSession(): void {
