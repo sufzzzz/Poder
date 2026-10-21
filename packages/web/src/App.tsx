@@ -4,7 +4,8 @@ import { Sidebar } from './ui/Sidebar';
 import { Timeline } from './ui/Timeline';
 import { Composer } from './ui/Composer';
 import { Settings } from './ui/Settings';
-import { IconChevron, IconDownload, IconRefresh, IconSettings, IconWrench } from './ui/icons';
+import { IconChevron, IconDownload, IconRefresh, IconSearch, IconSettings, IconWrench } from './ui/icons';
+import { ChatFindBar } from './ui/ChatFindBar';
 import { downloadSessionMarkdown } from './export';
 
 const SUGGESTIONS = [
@@ -18,6 +19,7 @@ export function App() {
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const [route, setRoute] = useState(() => window.location.hash || '#/');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [findOpen, setFindOpen] = useState(false);
 
   useEffect(() => {
     store.start();
@@ -47,7 +49,11 @@ export function App() {
         input?.focus();
         input?.select();
       }
-      if (event.key === 'Escape') setSidebarOpen(false);
+      if (event.key === 'Escape') { setSidebarOpen(false); setFindOpen(false); }
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && store.getSnapshot().activeId) {
+        event.preventDefault();
+        setFindOpen((v) => !v);
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -100,10 +106,11 @@ export function App() {
           entry={entry}
           drafting={drafting}
           onMenu={() => setSidebarOpen((v) => !v)}
+          onFind={() => setFindOpen((v) => !v)}
         />
         {state.activeId ? (
           <>
-            <TimelineScroller state={state} view={view} sessionId={state.activeId} />
+            <TimelineScroller state={state} view={view} sessionId={state.activeId} findOpen={findOpen} onCloseFind={() => setFindOpen(false)} />
             <Composer state={state} running={running} />
           </>
         ) : (
@@ -167,7 +174,19 @@ function DraftHome({ state }: { state: any }) {
   );
 }
 
-function TimelineScroller({ state, view, sessionId }: { state: any; view: any; sessionId: string }) {
+function TimelineScroller({
+  state,
+  view,
+  sessionId,
+  findOpen,
+  onCloseFind,
+}: {
+  state: any;
+  view: any;
+  sessionId: string;
+  findOpen?: boolean;
+  onCloseFind?: () => void;
+}) {
   const ref = useRef<HTMLDivElement | null>(null);
   const stick = useRef(true);
   const pendingEarlier = useRef<number | null>(null);
@@ -234,6 +253,7 @@ function TimelineScroller({ state, view, sessionId }: { state: any; view: any; s
   return (
     <>
       <LinkBanner state={state} />
+      {findOpen && onCloseFind && <ChatFindBar sessionId={sessionId} onClose={onCloseFind} />}
       <div className="timeline-wrap" ref={ref}>
         <div className="timeline">
           {minIndex > 0 && (
@@ -258,12 +278,14 @@ function ChatHead({
   state,
   entry,
   drafting,
-  onMenu
+  onMenu,
+  onFind
 }: {
   state: any;
   entry: any;
   drafting: boolean;
   onMenu: () => void;
+  onFind?: () => void;
 }) {
   const project = useMemo(
     () => state.projects.find((p: any) => p.id === (drafting ? state.draft?.projectId : entry?.projectId)),
@@ -313,6 +335,13 @@ function ChatHead({
             </button>
             <button className="icon-btn" title="压缩上下文" onClick={() => store.compact()}>
               <IconWrench size={15} />
+            </button>
+            <button
+              className="icon-btn"
+              title="在会话中查找 (Cmd/Ctrl+F)"
+              onClick={onFind}
+            >
+              <IconSearch size={15} />
             </button>
             <button
               className="icon-btn"

@@ -80,7 +80,7 @@ const TimelineNodeView = React.memo(
       const text = textOf(msg.content);
       const images = (msg.content ?? []).filter((p: any) => p?.type === 'image');
       return (
-        <div className="msg user" key={index}>
+        <div className="msg user" key={index} data-index={index}>
           {dayLabel && <div className="ux-day">{dayLabel}</div>}
           {images.length > 0 && (
             <div className="msg-media">
@@ -119,7 +119,7 @@ const TimelineNodeView = React.memo(
       const thinkingLive = isLastAssistant && running && !text;
 
       return (
-        <div className="msg" key={index}>
+        <div className="msg" key={index} data-index={index}>
           {dayLabel && <div className="ux-day">{dayLabel}</div>}
           <div className="msg-head">
             {msg.model && <span className="msg-model">{msg.model}</span>}
@@ -163,7 +163,7 @@ const TimelineNodeView = React.memo(
     const text = textOf(msg.content);
     if (!text) return null;
     return (
-      <div className="msg" key={index} style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+      <div className="msg" key={index} data-index={index} style={{ color: 'var(--muted)', fontSize: 12.5 }}>
         {dayLabel && <div className="ux-day">{dayLabel}</div>}
         {text}
       </div>
