@@ -366,15 +366,18 @@ export class AppStore {
   private handle(msg: Record<string, any>): void {
     this.lastFrameAt = Date.now();
     switch (msg.type) {
-      case 'catalog':
+      case 'catalog': {
+        const catalog = this.mergeCatalog((msg.entries ?? []) as CatalogEntry[]);
         this.patch({
-          catalog: this.mergeCatalog((msg.entries ?? []) as CatalogEntry[]),
+          catalog,
           pinnedOrder: Array.isArray(msg.pinnedOrder)
             ? (msg.pinnedOrder as string[])
             : this.state.pinnedOrder
         });
         this.flushPending();
+        this.tryRestoreActiveSession(catalog);
         break;
+      }
       case 'projects':
         this.patch({ projects: (msg.projects ?? []) as ProjectEntry[] });
         this.syncDraft();
@@ -514,10 +517,37 @@ export class AppStore {
     this.link?.send({ type: 'session-remove', sessionId });
   }
 
+  private hasRestored = false;
+
+  private tryRestoreActiveSession(catalog: CatalogEntry[]): void {
+    if (this.hasRestored || this.state.activeId || !catalog.length) return;
+    let targetId: string | null = null;
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/chat/')) {
+      targetId = window.location.hash.slice('#/chat/'.length).trim();
+    }
+    if (!targetId && typeof localStorage !== 'undefined') {
+      try {
+        targetId = localStorage.getItem('enso.lastSession');
+      } catch {}
+    }
+    if (targetId && catalog.some((entry) => entry.id === targetId)) {
+      this.hasRestored = true;
+      this.openSession(targetId);
+    }
+  }
+
   openSession(sessionId: string): void {
     const unread = { ...this.state.unread };
     delete unread[sessionId];
     this.patch({ activeId: sessionId, unread, draft: null });
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem('enso.lastSession', sessionId);
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && !window.location.hash.startsWith('#/settings')) {
+      window.location.hash = '#/chat/' + sessionId;
+    }
     if (!VIEW_CACHE.has(sessionId)) VIEW_CACHE.set(sessionId, emptyGuestView());
     this.subscribeTo(sessionId);
   }
@@ -555,6 +585,14 @@ export class AppStore {
 
   closeSession(): void {
     this.link?.send({ type: 'subscribe', sessionId: null });
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.removeItem('enso.lastSession');
+      } catch {}
+    }
+    if (typeof window !== 'undefined' && window.location.hash.startsWith('#/chat/')) {
+      window.location.hash = '#/';
+    }
     this.patch({ activeId: null });
   }
 

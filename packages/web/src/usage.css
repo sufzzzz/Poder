@@ -214,13 +214,25 @@
 
 .ctx-foot {
   display: flex;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
   margin-top: 9px;
   padding-top: 8px;
   border-top: 1px solid var(--line-soft);
   color: var(--muted);
   font-size: 11px;
   font-variant-numeric: tabular-nums;
+}
+
+.ctx-foot-tokens,
+.ctx-foot-perf {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ctx-foot-perf {
+  opacity: 0.85;
 }
 
 /* ---------- 代码块复制 ---------- */

@@ -21,7 +21,18 @@ export function App() {
   useEffect(() => {
     store.start();
     (window as any).__enso = store;
-    const onHash = () => setRoute(window.location.hash || '#/');
+    const onHash = () => {
+      const h = window.location.hash || '#/';
+      setRoute(h);
+      if (h.startsWith('#/chat/')) {
+        const sid = h.slice('#/chat/'.length).trim();
+        if (sid && sid !== store.getSnapshot().activeId) {
+          store.openSession(sid);
+        }
+      } else if (h === '#/' && store.getSnapshot().activeId) {
+        store.closeSession();
+      }
+    };
     window.addEventListener('hashchange', onHash);
     return () => window.removeEventListener('hashchange', onHash);
   }, []);
@@ -50,7 +61,12 @@ export function App() {
   if (settings) {
     return (
       <>
-        <Settings state={state} onBack={() => { window.location.hash = '#/'; }} />
+        <Settings
+          state={state}
+          onBack={() => {
+            window.location.hash = state.activeId ? `#/chat/${state.activeId}` : '#/';
+          }}
+        />
         {state.toast && <div className="toast">{state.toast}</div>}
       </>
     );

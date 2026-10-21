@@ -127,6 +127,15 @@ export function Composer({ state, running }: { state: AppState; running: boolean
   const entry = state.catalog.find((item) => item.id === state.activeId);
   const menuRef = useDismiss(menu !== null, () => setMenu(null));
 
+  // 输入多行文本时动态自适应高度，发送/清空后自动复原
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    const nextH = Math.min(Math.max(el.scrollHeight, 48), 240);
+    el.style.height = `${nextH}px`;
+  }, [text]);
+
   const models = useMemo<ModelOption[]>(() => {
     const list: ModelOption[] = [];
     for (const provider of state.providers) {
@@ -561,10 +570,22 @@ export function Composer({ state, running }: { state: AppState; running: boolean
                     </div>
                     {ctx.usage && (
                       <div className="ctx-foot">
-                        <span>↑ {shortTokens(ctx.usage.inputTokens)}</span>
-                        <span>↓ {shortTokens(ctx.usage.outputTokens)}</span>
-                        {typeof ctx.usage.cacheHitPercent === 'number' && (
-                          <span>缓存 {Math.round(ctx.usage.cacheHitPercent)}%</span>
+                        <div className="ctx-foot-tokens">
+                          <span>↑ {shortTokens(ctx.usage.inputTokens)}</span>
+                          <span>↓ {shortTokens(ctx.usage.outputTokens)}</span>
+                          {typeof ctx.usage.cacheHitPercent === 'number' && (
+                            <span>缓存 {Math.round(ctx.usage.cacheHitPercent)}%</span>
+                          )}
+                        </div>
+                        {(typeof ctx.usage.tokensPerSecond === 'number' || typeof ctx.usage.ttftAvgMs === 'number') && (
+                          <div className="ctx-foot-perf">
+                            {typeof ctx.usage.tokensPerSecond === 'number' && (
+                              <span>⚡ {ctx.usage.tokensPerSecond.toFixed(1)} tok/s</span>
+                            )}
+                            {typeof ctx.usage.ttftAvgMs === 'number' && (
+                              <span>首字 {Math.round(ctx.usage.ttftAvgMs)}ms</span>
+                            )}
+                          </div>
                         )}
                       </div>
                     )}
