@@ -457,8 +457,8 @@ export class AppStore {
           // 重复事件帧：直接丢弃，避免重复计算
           return;
         }
-        if (current.epoch !== cursor.epoch || cursor.seq !== current.seq + 1) {
-          // 游标不连续（漏帧）或 epoch 漂移（宿主换代/重启）：重置游标并重新订阅自愈
+        if (current.epoch !== cursor.epoch) {
+          // 宿主换代重启（epoch 漂移）：重置游标并重新拉取基线自愈
           this.cursors.delete(sessionId);
           this.subscribeTo(sessionId);
           return;
