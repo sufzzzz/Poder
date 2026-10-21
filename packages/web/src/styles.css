@@ -114,6 +114,24 @@ a { color: var(--accent); text-decoration: none; }
   line-height: 1.5;
 }
 
+.link-banner.warn {
+  border: 1px solid rgba(255, 176, 74, 0.4);
+  background: rgba(255, 176, 74, 0.1);
+  color: #ffcf8b;
+}
+
+.link-banner.error {
+  border: 1px solid rgba(248, 81, 73, 0.45);
+  background: rgba(248, 81, 73, 0.12);
+  color: #ff9994;
+}
+
+.link-banner.info {
+  border: 1px solid rgba(88, 166, 255, 0.4);
+  background: rgba(88, 166, 255, 0.1);
+  color: #9cd1ff;
+}
+
 .link-banner .btn { flex: 0 0 auto; }
 
 .sidebar-top { padding: 14px 14px 10px; }

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { base, boot } from '../boot';
 import { store, type AppState } from '../store';
+import { downloadSessionMarkdown } from '../export';
 import { IconLogout, IconPlus, IconSearch, IconSettings } from './icons';
 
 const dayMs = 86400000;
@@ -235,6 +236,14 @@ export function Sidebar(props: {
                         }}
                       >
                         {pinned ? '取消置顶' : '置顶'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMenuId(null);
+                          downloadSessionMarkdown(entry.id, entry.title);
+                        }}
+                      >
+                        导出 Markdown
                       </button>
                       <button
                         className="danger"

@@ -127,6 +127,25 @@ export function Composer({ state, running }: { state: AppState; running: boolean
   const entry = state.catalog.find((item) => item.id === state.activeId);
   const menuRef = useDismiss(menu !== null, () => setMenu(null));
 
+  // 获取当前会话最后一条用户发送的消息文本，用于按 ↑ 键快速回溯重发
+  const lastUserText = useMemo(() => {
+    if (!state.activeId) return '';
+    const view = store.view(state.activeId);
+    const sorted = [...view.messages.entries()].sort((a, b) => b[0] - a[0]);
+    for (const [, msg] of sorted) {
+      if (msg.role === 'user') {
+        const parts = (msg.content ?? []) as any[];
+        const t = parts
+          .filter((p) => p?.type === 'text' && typeof p.text === 'string')
+          .map((p) => p.text)
+          .join('\n')
+          .trim();
+        if (t) return t;
+      }
+    }
+    return '';
+  }, [state.activeId, state.rev]);
+
   // 输入多行文本时动态自适应高度，发送/清空后自动复原
   useEffect(() => {
     const el = ref.current;
@@ -409,6 +428,14 @@ export function Composer({ state, running }: { state: AppState; running: boolean
             if (event.key === 'Enter' && plain && !event.nativeEvent.isComposing) {
               event.preventDefault();
               submit();
+            }
+            // 输入框为空时按方向键 ↑ 快速恢复上一条发送的消息
+            if (event.key === 'ArrowUp' && !text.trim() && lastUserText && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              setText(lastUserText);
+              queueMicrotask(() => {
+                if (ref.current) ref.current.selectionStart = ref.current.selectionEnd = lastUserText.length;
+              });
             }
           }}
           onPaste={(event) => {

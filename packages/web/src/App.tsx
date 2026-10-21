@@ -4,7 +4,8 @@ import { Sidebar } from './ui/Sidebar';
 import { Timeline } from './ui/Timeline';
 import { Composer } from './ui/Composer';
 import { Settings } from './ui/Settings';
-import { IconChevron, IconRefresh, IconSettings, IconWrench } from './ui/icons';
+import { IconChevron, IconDownload, IconRefresh, IconSettings, IconWrench } from './ui/icons';
+import { downloadSessionMarkdown } from './export';
 
 const SUGGESTIONS = [
   '看一下这个仓库的结构，用三句话说明它是做什么的',
@@ -107,7 +108,7 @@ export function App() {
           </>
         ) : (
           <>
-            {state.link === 'replaced' ? <LinkBanner /> : null}
+            <LinkBanner state={state} />
             <DraftHome state={state} />
           </>
         )}
@@ -232,7 +233,7 @@ function TimelineScroller({ state, view, sessionId }: { state: any; view: any; s
 
   return (
     <>
-      {state.link === 'replaced' ? <LinkBanner /> : null}
+      <LinkBanner state={state} />
       <div className="timeline-wrap" ref={ref}>
         <div className="timeline">
           {minIndex > 0 && (
@@ -313,6 +314,15 @@ function ChatHead({
             <button className="icon-btn" title="压缩上下文" onClick={() => store.compact()}>
               <IconWrench size={15} />
             </button>
+            <button
+              className="icon-btn"
+              title="导出对话为 Markdown"
+              onClick={() => {
+                if (state.activeId) downloadSessionMarkdown(state.activeId, entry?.title);
+              }}
+            >
+              <IconDownload size={15} />
+            </button>
           </>
         )}
         <button className="icon-btn" title="设置" onClick={() => { window.location.hash = '#/settings'; }}>
@@ -323,14 +333,53 @@ function ChatHead({
   );
 }
 
-/** 同一台配对设备被别的窗口接管时的提示条 */
-function LinkBanner() {
-  return (
-    <div className="link-banner">
-      <span>该设备已在另一个窗口或设备上连接，此处已停止同步。</span>
-      <button className="btn" onClick={() => store.reconnect()}>
-        重新连接
-      </button>
-    </div>
-  );
+/** 全局网络异常与接管提示条：断网、重连中或被接管时温和提示，在线时自动隐藏 */
+function LinkBanner({ state }: { state: AppState }) {
+  if (state.link === 'online' || state.link === 'idle' || state.link === 'connecting') return null;
+
+  if (state.link === 'replaced') {
+    return (
+      <div className="link-banner warn">
+        <span>该设备已在另一个窗口连接，此处已停止同步。</span>
+        <button className="btn sm" onClick={() => store.reconnect()}>
+          重新连接
+        </button>
+      </div>
+    );
+  }
+
+  if (state.link === 'offline') {
+    return (
+      <div className="link-banner error">
+        <span>网络连接已断开{state.linkDetail ? `（${state.linkDetail}）` : ''}</span>
+        <button className="btn sm" onClick={() => store.reconnect()}>
+          立即重连
+        </button>
+      </div>
+    );
+  }
+
+  if (state.link === 'reconnecting') {
+    return (
+      <div className="link-banner info">
+        <span>连接中断，正在自动重连…</span>
+        <button className="btn sm" onClick={() => store.reconnect()}>
+          立即重试
+        </button>
+      </div>
+    );
+  }
+
+  if (state.link === 'unauthorized') {
+    return (
+      <div className="link-banner error">
+        <span>配对凭据失效或未配对</span>
+        <button className="btn sm" onClick={() => { window.location.hash = '#/settings'; }}>
+          去设置
+        </button>
+      </div>
+    );
+  }
+
+  return null;
 }
