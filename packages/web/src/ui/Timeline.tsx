@@ -194,12 +194,12 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
   const items = useMemo(() => {
     const entries = [...view.messages.entries()].sort((a, b) => a[0] - b[0]);
     return entries.filter(([, msg]) => msg.role !== 'toolResult');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, state.rev, sessionId]);
+
   const userIndices = useMemo(() => {
     return items.filter(([, m]) => m.role === 'user').map(([idx]) => idx);
   }, [items]);
-
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, state.rev, sessionId]);
 
   const running = view.status === 'running' || view.status === 'streaming' || view.status === 'waiting';
   const results = new Map<string, any>();
