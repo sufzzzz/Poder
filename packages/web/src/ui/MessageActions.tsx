@@ -94,6 +94,11 @@ export function MessageActions({
           <IconRewind size={13} />
         </button>
       )}
+      {role === 'assistant' && text && (
+        <span className="ux-action-count" title={`全文共 ${text.length} 个字符`}>
+          {text.length >= 1000 ? `${(text.length / 1000).toFixed(1)}k` : text.length} 字
+        </span>
+      )}
     </div>
   );
 }

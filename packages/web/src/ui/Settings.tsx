@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AppState } from '../store';
+import { store, type AppState } from '../store';
 import { admin, type Overview, type ProviderView, type SettingsView } from '../api';
 import { IconBack, IconChip, IconRefresh, IconServer, IconShield, IconUser, IconWrench } from './icons';
 
@@ -162,7 +162,7 @@ export function Settings({ state, onBack }: { state: AppState; onBack: () => voi
           {tab === 'chat' && <ChatDefaults fields={fields} onPatch={patchField} allModels={allModels} />}
           {tab === 'ui' && <UiTab fields={fields} onPatch={patchField} />}
           {tab === 'account' && <AccountTab overview={overview} onReload={reload} />}
-          {tab === 'maintenance' && <MaintenanceTab overview={overview} onReload={reload} />}
+          {tab === 'maintenance' && <MaintenanceTab overview={overview} onReload={reload} state={state} />}
 
           {(tab === 'models' || tab === 'chat' || tab === 'ui') && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 18 }}>
@@ -581,7 +581,38 @@ function AccountTab({ overview, onReload }: { overview: Overview | null; onReloa
   );
 }
 
-function MaintenanceTab({ overview, onReload }: { overview: Overview | null; onReload: () => void }) {
+function MaintenanceTab({
+  overview,
+  onReload,
+  state
+}: {
+  overview: Overview | null;
+  onReload: () => void;
+  state: AppState;
+}) {
+  const [cleanMsg, setCleanMsg] = useState('');
+  const [cleaning, setCleaning] = useState(false);
+
+  const cleanOldSessions = () => {
+    const cutoff = Date.now() - 7 * 86400 * 1000;
+    const toClean = state.catalog.filter((item) => !item.pinned && (item.updatedAt ?? 0) < cutoff);
+    if (!toClean.length) {
+      setCleanMsg('暂无 7 天前未置顶的旧会话需要清理');
+      return;
+    }
+    const count = toClean.length;
+    if (window.confirm('确认清理 ' + count + ' 个超过 7 天未更新且未置顶的历史会话？该操作不可撤销。')) {
+      setCleaning(true);
+      setCleanMsg('正在清理 ' + count + ' 个历史会话…');
+      for (const item of toClean) {
+        store.removeSession(item.id);
+      }
+      setTimeout(() => {
+        setCleaning(false);
+        setCleanMsg('已批量清理 ' + count + ' 个历史会话');
+      }, 1200);
+    }
+  };
   const [unit, setUnit] = useState<'desktop' | 'web'>('desktop');
   const [logs, setLogs] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -622,6 +653,24 @@ function MaintenanceTab({ overview, onReload }: { overview: Overview | null; onR
     <>
       <h1>维护</h1>
       <p className="lead">重启进程、查看日志。重启桌面端会短暂断开当前会话，历史会保留。</p>
+
+      <div className="card">
+        <h2>会话历史治理</h2>
+        <p className="card-sub">
+          当前共有 {state.catalog.length} 个会话。可一键批量清理超过 7 天未更新且未置顶的旧会话（带「置顶」标记的核心会话将永久安全保留）。
+        </p>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+          <button
+            className="btn sm danger"
+            type="button"
+            disabled={cleaning}
+            onClick={cleanOldSessions}
+          >
+            {cleaning ? '正在清理…' : '清理 7 天前未置顶的旧会话'}
+          </button>
+          {cleanMsg && <span style={{ fontSize: 12, color: 'var(--muted)' }}>{cleanMsg}</span>}
+        </div>
+      </div>
 
       <div className="card">
         <h2>服务</h2>

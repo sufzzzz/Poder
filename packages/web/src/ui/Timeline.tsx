@@ -125,7 +125,7 @@ const TimelineNodeView = React.memo(
           {dayLabel && <div className="ux-day">{dayLabel}</div>}
           <div className="msg-head">
             {msg.model && <span className="msg-model">{msg.model}</span>}
-            {msg.timestamp ? <span>{timeLabel(msg.timestamp)}</span> : null}
+            {msg.timestamp ? <span title={new Date(msg.timestamp).toLocaleString()}>{timeLabel(msg.timestamp)}</span> : null}
           </div>
           <div className="msg-body">
             {thinking.map((part: any, i: number) => (

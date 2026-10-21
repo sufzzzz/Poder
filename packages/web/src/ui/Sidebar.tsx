@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { base, boot } from '../boot';
 import { store, type AppState } from '../store';
-import { downloadSessionMarkdown } from '../export';
+import { shareOrDownloadSession } from '../export';
 import { IconLogout, IconPlus, IconSearch, IconSettings } from './icons';
 
 const dayMs = 86400000;
@@ -240,7 +240,7 @@ export function Sidebar(props: {
                       <button
                         onClick={() => {
                           setMenuId(null);
-                          downloadSessionMarkdown(entry.id, entry.title);
+                          void shareOrDownloadSession(entry.id, entry.title);
                         }}
                       >
                         导出 Markdown

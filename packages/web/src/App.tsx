@@ -4,9 +4,10 @@ import { Sidebar } from './ui/Sidebar';
 import { Timeline } from './ui/Timeline';
 import { Composer } from './ui/Composer';
 import { Settings } from './ui/Settings';
-import { IconChevron, IconDownload, IconRefresh, IconSearch, IconSettings, IconWrench } from './ui/icons';
+import { IconChevron, IconDownload, IconHelp, IconRefresh, IconSearch, IconSettings, IconWrench } from './ui/icons';
+import { ShortcutsModal } from './ui/ShortcutsModal';
 import { ChatFindBar } from './ui/ChatFindBar';
-import { downloadSessionMarkdown } from './export';
+import { shareOrDownloadSession } from './export';
 
 const SUGGESTIONS = [
   '看一下这个仓库的结构，用三句话说明它是做什么的',
@@ -20,6 +21,7 @@ export function App() {
   const [route, setRoute] = useState(() => window.location.hash || '#/');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [findOpen, setFindOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
 
   useEffect(() => {
     store.start();
@@ -49,10 +51,14 @@ export function App() {
         input?.focus();
         input?.select();
       }
-      if (event.key === 'Escape') { setSidebarOpen(false); setFindOpen(false); }
+      if (event.key === 'Escape') { setSidebarOpen(false); setFindOpen(false); setShortcutsOpen(false); }
       if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f' && store.getSnapshot().activeId) {
         event.preventDefault();
         setFindOpen((v) => !v);
+      }
+      if (event.key === '?' && !['input', 'textarea'].includes((event.target as HTMLElement)?.tagName?.toLowerCase())) {
+        event.preventDefault();
+        setShortcutsOpen((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -107,6 +113,7 @@ export function App() {
           drafting={drafting}
           onMenu={() => setSidebarOpen((v) => !v)}
           onFind={() => setFindOpen((v) => !v)}
+          onShortcuts={() => setShortcutsOpen((v) => !v)}
         />
         {state.activeId ? (
           <>
@@ -121,6 +128,7 @@ export function App() {
         )}
       </main>
 
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
       {state.toast && <div className="toast">{state.toast}</div>}
     </div>
   );
@@ -279,13 +287,15 @@ function ChatHead({
   entry,
   drafting,
   onMenu,
-  onFind
+  onFind,
+  onShortcuts
 }: {
   state: any;
   entry: any;
   drafting: boolean;
   onMenu: () => void;
   onFind?: () => void;
+  onShortcuts?: () => void;
 }) {
   const project = useMemo(
     () => state.projects.find((p: any) => p.id === (drafting ? state.draft?.projectId : entry?.projectId)),
@@ -347,13 +357,16 @@ function ChatHead({
               className="icon-btn"
               title="导出对话为 Markdown"
               onClick={() => {
-                if (state.activeId) downloadSessionMarkdown(state.activeId, entry?.title);
+                if (state.activeId) void shareOrDownloadSession(state.activeId, entry?.title);
               }}
             >
               <IconDownload size={15} />
             </button>
           </>
         )}
+        <button className="icon-btn" title="快捷键指南 (?)" onClick={onShortcuts}>
+          <IconHelp size={15} />
+        </button>
         <button className="icon-btn" title="设置" onClick={() => { window.location.hash = '#/settings'; }}>
           <IconSettings size={15} />
         </button>

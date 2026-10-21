@@ -69,6 +69,38 @@ export function downloadSessionMarkdown(sessionId: string, title?: string): void
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+/** 智能导出：在移动端支持 navigator.share 时优先呼出系统原生分享面板，否则触发下载 */
+export async function shareOrDownloadSession(sessionId: string, title?: string): Promise<void> {
+  const md = sessionToMarkdown(sessionId, title);
+  const safeName = (title || '会话记录').replace(/[\\/:*?"<>|]+/g, '_').slice(0, 40);
+  const dateStr = new Date().toISOString().slice(0, 10);
+  const fileName = `${safeName}-${dateStr}.md`;
+
+  // 1. 优先尝试 Web Share API（手机端 Safari/Chrome 原生分享）
+  if (typeof navigator !== 'undefined' && typeof navigator.share === 'function') {
+    try {
+      const file = new File([md], fileName, { type: 'text/markdown;charset=utf-8' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: title || '会话记录',
+          files: [file]
+        });
+        return;
+      }
+      await navigator.share({
+        title: title || '会话记录',
+        text: md.length > 4000 ? `${md.slice(0, 4000)}\n\n[内容过长已截断]` : md
+      });
+      return;
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return; // 用户主动取消
+    }
+  }
+
+  // 2. 桌面端或不支持原生分享时：直接下载文件
+  downloadSessionMarkdown(sessionId, title);
+}
+
 /** 复制整篇会话为 Markdown 到剪贴板 */
 export async function copySessionMarkdown(sessionId: string, title?: string): Promise<boolean> {
   const md = sessionToMarkdown(sessionId, title);
@@ -83,6 +115,7 @@ export async function copySessionMarkdown(sessionId: string, title?: string): Pr
     area.value = md;
     area.setAttribute('readonly', '');
     area.style.position = 'fixed';
+    area.style.top = '-1000px';
     area.style.opacity = '0';
     document.body.appendChild(area);
     area.select();
