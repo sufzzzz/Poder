@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { AppState } from '../store';
 import { store } from '../store';
 import type { GuestSessionView } from '@shared/pair/guestProjection';
@@ -41,14 +41,147 @@ function dayDivider(prevTs: number | undefined, ts: number | undefined): string 
     : `${day.getFullYear()}年${day.getMonth() + 1}月${day.getDate()}日`;
 }
 
+type TimelineNode =
+  | { kind: 'msg'; index: number; msg: any }
+  | { kind: 'tools'; id: string; tools: any[]; ts?: number };
+
+interface TimelineNodeProps {
+  node: TimelineNode;
+  dayLabel: string;
+  results: Map<string, any>;
+  running: boolean;
+  isLastAssistant: boolean;
+  onOpenLightbox: (src: string) => void;
+}
+
+/** 独立的消息项组件：通过 React.memo 与精细比对，流式吐字时跳过历史消息无谓渲染 */
+const TimelineNodeView = React.memo(
+  function TimelineNodeView({
+    node,
+    dayLabel,
+    results,
+    running,
+    isLastAssistant,
+    onOpenLightbox,
+  }: TimelineNodeProps) {
+    if (node.kind === 'tools') {
+      return (
+        <div className="msg" key={node.id}>
+          {dayLabel && <div className="ux-day">{dayLabel}</div>}
+          <div className="msg-body">
+            <ToolGroup tools={node.tools} results={results} running={running} />
+          </div>
+        </div>
+      );
+    }
+    const index = node.index;
+    const msg = node.msg;
+    if (msg.role === 'user') {
+      const text = textOf(msg.content);
+      const images = (msg.content ?? []).filter((p: any) => p?.type === 'image');
+      return (
+        <div className="msg user" key={index}>
+          {dayLabel && <div className="ux-day">{dayLabel}</div>}
+          {images.length > 0 && (
+            <div className="msg-media">
+              {images.map((img: any, i: number) => {
+                const src = `data:${img.mimeType};base64,${img.data}`;
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    className="msg-thumb"
+                    onClick={() => onOpenLightbox(src)}
+                    title="查看大图"
+                  >
+                    <img alt="" src={src} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          {text && (
+            <div className="bubble-user">
+              <UserText text={text} />
+            </div>
+          )}
+          {text && <MessageActions role="user" text={text} onEdit={() => prefillComposer(text)} />}
+        </div>
+      );
+    }
+
+    if (msg.role === 'assistant') {
+      const thinking = (msg.content ?? []).filter((p: any) => p?.type === 'thinking' && p.text);
+      const text = textOf(msg.content);
+      const tools = (msg.content ?? []).filter((p: any) => p?.type === 'toolCall');
+      if (!text && !thinking.length && !tools.length && !msg.errorMessage) return null;
+      return (
+        <div className="msg" key={index}>
+          {dayLabel && <div className="ux-day">{dayLabel}</div>}
+          <div className="msg-head">
+            {msg.model && <span className="msg-model">{msg.model}</span>}
+            {msg.timestamp ? <span>{timeLabel(msg.timestamp)}</span> : null}
+          </div>
+          <div className="msg-body">
+            {thinking.map((part: any, i: number) => (
+              <details className="thinking" key={i}>
+                <summary>
+                  <IconSpark size={12} /> 思考过程
+                </summary>
+                <div className="thinking-body">{part.text}</div>
+              </details>
+            ))}
+            <ToolGroup tools={tools} results={results} running={running} />
+            {text && <Markdown text={text} />}
+            <MessageActions
+              role="assistant"
+              text={text}
+              onRetry={isLastAssistant && !running ? () => store.retry() : undefined}
+            />
+            {msg.errorMessage && (
+              <div className="error-line">
+                <span>上游返回错误：{String(msg.errorMessage)}</span>
+                <button className="btn sm" onClick={() => store.retry()}>
+                  <IconRefresh size={12} /> 重试
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const text = textOf(msg.content);
+    if (!text) return null;
+    return (
+      <div className="msg" key={index} style={{ color: 'var(--muted)', fontSize: 12.5 }}>
+        {dayLabel && <div className="ux-day">{dayLabel}</div>}
+        {text}
+      </div>
+    );
+  },
+  (prev, next) => {
+    if (prev.dayLabel !== next.dayLabel) return false;
+    if (prev.isLastAssistant !== next.isLastAssistant) return false;
+    if (prev.running !== next.running) return false;
+    if (prev.node.kind !== next.node.kind) return false;
+    if (prev.node.kind === 'tools') {
+      const prevTools = prev.node.tools;
+      const nextTools = (next.node as any).tools;
+      if (prevTools.length !== nextTools.length) return false;
+      for (let i = 0; i < prevTools.length; i++) {
+        if (prevTools[i] !== nextTools[i]) return false;
+      }
+      return true;
+    }
+    return prev.node.msg === (next.node as any).msg;
+  }
+);
+
 export function Timeline({ state, view, sessionId }: { state: AppState; view: GuestSessionView; sessionId: string }) {
   const [lightbox, setLightbox] = useState<string | null>(null);
   const items = useMemo(() => {
     const entries = [...view.messages.entries()].sort((a, b) => a[0] - b[0]);
-    const results = new Map<string, any>();
-    for (const [, msg] of entries) {
-      if (msg.role === 'toolResult' && msg.toolCallId) results.set(msg.toolCallId, msg);
-    }
     return entries.filter(([, msg]) => msg.role !== 'toolResult');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, state.rev, sessionId]);
@@ -69,10 +202,7 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
   // 连续「只含工具调用、没有正文」的 assistant 消息合成一个过程块，
   // 与桌面端「过程 N 个工具调用」的呈现保持一致。
   const nodes = useMemo(() => {
-    type Node =
-      | { kind: 'msg'; index: number; msg: any }
-      | { kind: 'tools'; id: string; tools: any[]; ts?: number };
-    const out: Node[] = [];
+    const out: TimelineNode[] = [];
     let run: { index: number; part: any; ts?: number }[] = [];
     const flush = () => {
       if (!run.length) return;
@@ -100,100 +230,17 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
         const prevNode = i > 0 ? nodes[i - 1] : null;
         const prevTs = prevNode ? (prevNode.kind === 'msg' ? prevNode.msg.timestamp : prevNode.ts) : undefined;
         const dayLabel = dayDivider(prevTs, node.kind === 'msg' ? node.msg.timestamp : node.ts);
-        if (node.kind === 'tools') {
-          return (
-            <div className="msg" key={node.id}>
-              {dayLabel && <div className="ux-day">{dayLabel}</div>}
-              <div className="msg-body">
-                <ToolGroup tools={node.tools} results={results} running={running} />
-              </div>
-            </div>
-          );
-        }
-        const index = node.index;
-        const msg = node.msg;
-        if (msg.role === 'user') {
-          const text = textOf(msg.content);
-          const images = (msg.content ?? []).filter((p: any) => p?.type === 'image');
-          return (
-            <div className="msg user" key={index}>
-              {dayLabel && <div className="ux-day">{dayLabel}</div>}
-              {images.length > 0 && (
-                <div className="msg-media">
-                  {images.map((img: any, i: number) => {
-                    const src = `data:${img.mimeType};base64,${img.data}`;
-                    return (
-                      <button
-                        key={i}
-                        type="button"
-                        className="msg-thumb"
-                        onClick={() => setLightbox(src)}
-                        title="查看大图"
-                      >
-                        <img alt="" src={src} />
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              {text && (
-                <div className="bubble-user">
-                  <UserText text={text} />
-                </div>
-              )}
-              {text && <MessageActions role="user" text={text} onEdit={() => prefillComposer(text)} />}
-            </div>
-          );
-        }
-
-        if (msg.role === 'assistant') {
-          const thinking = (msg.content ?? []).filter((p: any) => p?.type === 'thinking' && p.text);
-          const text = textOf(msg.content);
-          const tools = (msg.content ?? []).filter((p: any) => p?.type === 'toolCall');
-          if (!text && !thinking.length && !tools.length && !msg.errorMessage) return null;
-          return (
-            <div className="msg" key={index}>
-              {dayLabel && <div className="ux-day">{dayLabel}</div>}
-              <div className="msg-head">
-                {msg.model && <span className="msg-model">{msg.model}</span>}
-                {msg.timestamp ? <span>{timeLabel(msg.timestamp)}</span> : null}
-              </div>
-              <div className="msg-body">
-                {thinking.map((part: any, i: number) => (
-                  <details className="thinking" key={i}>
-                    <summary>
-                      <IconSpark size={12} /> 思考过程
-                    </summary>
-                    <div className="thinking-body">{part.text}</div>
-                  </details>
-                ))}
-                <ToolGroup tools={tools} results={results} running={running} />
-                {text && <Markdown text={text} />}
-                <MessageActions
-                  role="assistant"
-                  text={text}
-                  onRetry={index === lastAssistantIndex && !running ? () => store.retry() : undefined}
-                />
-                {msg.errorMessage && (
-                  <div className="error-line">
-                    <span>上游返回错误：{String(msg.errorMessage)}</span>
-                    <button className="btn sm" onClick={() => store.retry()}>
-                      <IconRefresh size={12} /> 重试
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        const text = textOf(msg.content);
-        if (!text) return null;
+        const isLastAssistant = node.kind === 'msg' && node.index === lastAssistantIndex;
         return (
-          <div className="msg" key={index} style={{ color: 'var(--muted)', fontSize: 12.5 }}>
-            {dayLabel && <div className="ux-day">{dayLabel}</div>}
-            {text}
-          </div>
+          <TimelineNodeView
+            key={node.kind === 'tools' ? node.id : node.index}
+            node={node}
+            dayLabel={dayLabel}
+            results={results}
+            running={running}
+            isLastAssistant={isLastAssistant}
+            onOpenLightbox={setLightbox}
+          />
         );
       })}
 
@@ -215,7 +262,7 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
             </button>
           </div>
         </div>
-      ))}
+      ))};
 
       {view.asks.map((ask) => (
         <AskCard key={ask.requestId} ask={ask} />

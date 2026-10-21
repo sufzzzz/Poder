@@ -1,3 +1,4 @@
+import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { CopyButton } from './CopyButton';
@@ -10,7 +11,7 @@ function nodeText(node: any): string {
   return '';
 }
 
-export function Markdown({ text }: { text: string }) {
+export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
   return (
     <div className="markdown">
       <ReactMarkdown
@@ -37,4 +38,4 @@ export function Markdown({ text }: { text: string }) {
       </ReactMarkdown>
     </div>
   );
-}
+});

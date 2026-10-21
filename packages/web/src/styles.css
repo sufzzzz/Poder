@@ -298,7 +298,13 @@ a { color: var(--accent); text-decoration: none; }
   border: 1px solid var(--logo-c); font-weight: 700; color: var(--logo-fg);
 }
 
-.msg { display: flex; flex-direction: column; gap: 6px; }
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 72px;
+}
 .msg.user { align-items: flex-end; }
 .bubble-user {
   max-width: 78%;

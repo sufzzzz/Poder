@@ -126,6 +126,7 @@ export class AppStore {
   private listeners = new Set<Listener>();
   private link: PairLink | null = null;
   private lastIndex = new Map<string, number>();
+  private cursors = new Map<string, { epoch: string; seq: number }>();
   private toastTimer: ReturnType<typeof setTimeout> | null = null;
   /** 最近一次收到任何帧的时间：用来判断连接是否名存实亡 */
   private lastFrameAt = Date.now();
@@ -387,6 +388,9 @@ export class AppStore {
   }
 
   private applySync(msg: Record<string, any>): void {
+    if (msg.cursor && typeof msg.cursor.epoch === 'string' && typeof msg.cursor.seq === 'number') {
+      this.cursors.set(msg.sessionId, msg.cursor);
+    }
     if (msg.mode === 'replay') {
       const current = VIEW_CACHE.get(msg.sessionId) ?? emptyGuestView();
       let view = current;
@@ -414,6 +418,22 @@ export class AppStore {
 
   private applyEvent(sessionId: string, event: Record<string, any>, cursor?: any): void {
     if (!sessionId || !event) return;
+    if (cursor && typeof cursor.epoch === 'string' && typeof cursor.seq === 'number') {
+      const current = this.cursors.get(sessionId);
+      if (current) {
+        if (current.epoch === cursor.epoch && cursor.seq <= current.seq) {
+          // 重复事件帧：直接丢弃，避免重复计算
+          return;
+        }
+        if (current.epoch !== cursor.epoch || cursor.seq !== current.seq + 1) {
+          // 游标不连续（漏帧）或 epoch 漂移（宿主换代/重启）：重置游标并重新订阅自愈
+          this.cursors.delete(sessionId);
+          this.subscribeTo(sessionId);
+          return;
+        }
+      }
+      this.cursors.set(sessionId, cursor);
+    }
     // 按 sinceIndex 增量订阅时，宿主对冷会话/换代仍可能回整份快照事件；
     // 这类事件要按快照合并，当增量丢掉会让已打开的会话停在旧内容上。
     if (event.type === 'snapshot') {
@@ -435,7 +455,6 @@ export class AppStore {
     if (typeof result.lastIndex === 'number') this.lastIndex.set(sessionId, result.lastIndex);
     const unread = sessionId === this.state.activeId ? this.state.unread : { ...this.state.unread, [sessionId]: true as const };
     this.bumpSessions({ unread });
-    void cursor;
   }
 
   private applyHistory(msg: Record<string, any>): void {
@@ -487,12 +506,17 @@ export class AppStore {
   private subscribeTo(sessionId: string): void {
     if (!this.link || this.state.link !== 'online') return;
     const sinceIndex = this.lastIndex.get(sessionId);
-    if (typeof sinceIndex === 'number' && VIEW_CACHE.get(sessionId)?.messages.size) {
-      this.link.send({ type: 'subscribe', sessionId, sinceIndex });
-    } else {
-      // 没有基线时显式要一份快照，否则宿主不会回 session-sync
-      this.link.send({ type: 'subscribe', sessionId, sync: { requestId: `sync-${Date.now().toString(36)}` } });
-    }
+    const cursor = this.cursors.get(sessionId);
+    const requestId = `sync-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    this.link.send({
+      type: 'subscribe',
+      sessionId,
+      ...(typeof sinceIndex === 'number' && VIEW_CACHE.get(sessionId)?.messages.size ? { sinceIndex } : {}),
+      sync: {
+        requestId,
+        ...(cursor ? { cursor } : {})
+      }
+    });
   }
 
   /**
