@@ -297,12 +297,26 @@ function ChatHead({
   onFind?: () => void;
   onShortcuts?: () => void;
 }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+  const moreRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (!moreRef.current?.contains(e.target as Node)) setMoreOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [moreOpen]);
+
   const project = useMemo(
     () => state.projects.find((p: any) => p.id === (drafting ? state.draft?.projectId : entry?.projectId)),
     [state.projects, entry?.projectId, drafting, state.draft?.projectId]
   );
   const running = entry?.status === 'running' || entry?.status === 'streaming';
   const waiting = entry?.status === 'waiting';
+
+  const shortModel = entry?.modelId ? entry.modelId.split('/').pop() : '';
 
   return (
     <header className="chat-head">
@@ -324,11 +338,11 @@ function ChatHead({
             </>
           ) : entry ? (
             <>
-              <span className="mono">{entry.cwd ?? project?.path ?? entry.projectName ?? ''}</span>
-              {entry?.modelId && (
+              {shortModel && <span className="mono">{shortModel}</span>}
+              {entry.cwd && (
                 <>
                   <span className="dot" style={{ width: 3, height: 3 }} />
-                  <span className="mono">{entry.modelId}</span>
+                  <span className="mono chat-sub-cwd">{entry.cwd.split('/').pop() || entry.cwd}</span>
                 </>
               )}
             </>
@@ -337,7 +351,9 @@ function ChatHead({
           )}
         </div>
       </div>
-      <div className="chat-actions">
+
+      {/* 桌面端：平铺展开所有高频按钮 */}
+      <div className="chat-actions chat-actions-desktop">
         {entry && !drafting && (
           <>
             <button className="icon-btn" title="重试上一轮" onClick={() => store.retry()}>
@@ -355,7 +371,7 @@ function ChatHead({
             </button>
             <button
               className="icon-btn"
-              title="导出对话为 Markdown"
+              title="导出/分享对话"
               onClick={() => {
                 if (state.activeId) void shareOrDownloadSession(state.activeId, entry?.title);
               }}
@@ -370,6 +386,42 @@ function ChatHead({
         <button className="icon-btn" title="设置" onClick={() => { window.location.hash = '#/settings'; }}>
           <IconSettings size={15} />
         </button>
+      </div>
+
+      {/* 移动端紧凑模式：只保留搜索与更多操作，彻底杜绝小屏挤扁和重叠 */}
+      <div className="chat-actions chat-actions-mobile" ref={moreRef}>
+        {entry && !drafting && (
+          <button className="icon-btn" title="在会话中查找" onClick={onFind}>
+            <IconSearch size={16} />
+          </button>
+        )}
+        <button className="icon-btn" title="更多操作" onClick={() => setMoreOpen((v) => !v)}>
+          ⋯
+        </button>
+        {moreOpen && (
+          <div className="head-more-menu" onClick={() => setMoreOpen(false)}>
+            {entry && !drafting && (
+              <>
+                <button onClick={() => store.retry()}>
+                  <IconRefresh size={14} /> 重新生成
+                </button>
+                <button onClick={() => store.compact()}>
+                  <IconWrench size={14} /> 压缩上下文
+                </button>
+                <button onClick={() => { if (state.activeId) void shareOrDownloadSession(state.activeId, entry?.title); }}>
+                  <IconDownload size={14} /> 导出/分享对话
+                </button>
+                <div className="menu-divider" />
+              </>
+            )}
+            <button onClick={onShortcuts}>
+              <IconHelp size={14} /> 快捷键指南
+            </button>
+            <button onClick={() => { window.location.hash = '#/settings'; }}>
+              <IconSettings size={14} /> 系统设置
+            </button>
+          </div>
+        )}
       </div>
     </header>
   );

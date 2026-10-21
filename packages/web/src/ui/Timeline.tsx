@@ -151,8 +151,12 @@ const TimelineNodeView = React.memo(
             />
             {msg.errorMessage && (
               <div className="error-line">
-                <span>上游返回错误：{String(msg.errorMessage)}</span>
-                <button className="btn sm" onClick={() => store.retry()}>
+                <span className="error-text">
+                  {String(msg.errorMessage).includes('Request aborted')
+                    ? '本轮生成已由用户中止'
+                    : `上游返回错误：${String(msg.errorMessage)}`}
+                </span>
+                <button className="btn sm error-retry" onClick={() => store.retry()} title="重试">
                   <IconRefresh size={12} /> 重试
                 </button>
               </div>
@@ -280,7 +284,7 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
             </button>
           </div>
         </div>
-      ))};
+      ))}
 
       {view.asks.map((ask) => (
         <AskCard key={ask.requestId} ask={ask} />

@@ -126,20 +126,20 @@ export function Settings({ state, onBack }: { state: AppState; onBack: () => voi
   return (
     <div className="settings">
       <nav className="settings-nav">
-        <div className="settings-nav-title">Poder 设置</div>
+        <button className="nav-item nav-back" onClick={onBack} title="返回会话">
+          <IconBack size={15} />
+          <span>返回</span>
+        </button>
+        <div className="nav-divider-v" />
         {TABS.map((item) => {
           const Icon = item.icon;
           return (
             <button key={item.id} className={`nav-item${tab === item.id ? ' active' : ''}`} onClick={() => setTab(item.id)}>
               <Icon size={15} />
-              {item.label}
+              <span>{item.label}</span>
             </button>
           );
         })}
-        <div className="settings-nav-spacer" />
-        <button className="nav-item nav-back" onClick={onBack}>
-          <IconBack size={15} /> 返回会话
-        </button>
       </nav>
 
       <div className="settings-body">
@@ -183,7 +183,20 @@ export function Settings({ state, onBack }: { state: AppState; onBack: () => voi
 
 function OverviewTab({ overview, state, onReload }: { overview: Overview | null; state: AppState; onReload: () => void }) {
   if (!overview) return <div className="card">加载中…</div>;
-  const conn = state.link === 'online' ? '在线' : state.link === 'connecting' || state.link === 'reconnecting' ? '连接中' : state.link === 'unauthorized' ? '凭据失效' : '离线';
+
+  const connLabel =
+    state.link === 'online'
+      ? '在线'
+      : state.link === 'connecting'
+        ? '连接中'
+        : state.link === 'reconnecting'
+          ? '重连中'
+          : state.link === 'offline'
+            ? '离线'
+            : state.link === 'unauthorized'
+              ? '凭据失效'
+              : '未连接';
+
   return (
     <>
       <h1>概览</h1>
@@ -192,37 +205,68 @@ function OverviewTab({ overview, state, onReload }: { overview: Overview | null;
       <div className="card">
         <h2>连接</h2>
         <p className="card-sub">浏览器经官方中继连回桌面端，消息端到端加密。</p>
-        <dl className="kv">
-          <dt>中继状态</dt>
-          <dd>{conn}</dd>
-          <dt>桌面端</dt>
-          <dd>{overview.desktop.active ? `运行中${overview.desktop.since ? `（自 ${overview.desktop.since}）` : ''}` : '未运行'}</dd>
-          <dt>设备名</dt>
-          <dd>{overview.device.deviceName || '—'}</dd>
-          <dt>配对时间</dt>
-          <dd>{overview.device.pairedAt ? new Date(overview.device.pairedAt).toLocaleString('zh-CN') : '—'}</dd>
-          <dt>中继地址</dt>
-          <dd>{overview.device.relayUrl}</dd>
-          <dt>登录账号</dt>
-          <dd>{overview.user}</dd>
-        </dl>
+        <div className="kv-list">
+          <div className="kv-row">
+            <span className="kv-label">中继状态</span>
+            <span className={`status-badge ${state.link === 'online' ? 'ok' : state.link === 'offline' ? 'err' : 'warn'}`}>
+              <span className={`dot ${state.link === 'online' ? 'running' : 'waiting'}`} />
+              {connLabel}
+            </span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">桌面端</span>
+            <span className="kv-value">
+              {overview.desktop.active ? (
+                <span className="status-badge ok">运行中</span>
+              ) : (
+                <span className="status-badge err">未运行</span>
+              )}
+            </span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">设备名</span>
+            <span className="kv-value">{overview.device.deviceName || 'Web 浏览器'}</span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">配对时间</span>
+            <span className="kv-value">
+              {overview.device.pairedAt ? new Date(overview.device.pairedAt).toLocaleDateString('zh-CN') : '—'}
+            </span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">中继地址</span>
+            <span className="kv-value" style={{ fontSize: 12 }}>{overview.device.relayUrl}</span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">登录账号</span>
+            <span className="kv-value">{overview.user}</span>
+          </div>
+        </div>
       </div>
 
       <div className="card">
         <h2>模型</h2>
         <p className="card-sub">默认模型与上游可用性。</p>
-        <dl className="kv">
-          <dt>默认模型</dt>
-          <dd>{overview.settings.defaultModel ?? '跟随上次使用'}</dd>
-          <dt>已配置模型</dt>
-          <dd>{overview.settings.models} 个（{overview.settings.providers} 个供应商）</dd>
-          <dt>上游探活</dt>
-          <dd>
-            {overview.upstream.ok ? `正常，返回 ${overview.upstream.count} 个模型` : `失败：${overview.upstream.error ?? '未知'}`}
-          </dd>
-          <dt>配置文件</dt>
-          <dd>{overview.settings.path}</dd>
-        </dl>
+        <div className="kv-list">
+          <div className="kv-row">
+            <span className="kv-label">默认模型</span>
+            <span className="kv-value">{overview.settings.defaultModel ?? '跟随上次使用'}</span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">已配置模型</span>
+            <span className="kv-value">{overview.settings.models} 个 ({overview.settings.providers} 个供应商)</span>
+          </div>
+          <div className="kv-row">
+            <span className="kv-label">上游探活</span>
+            <span className="kv-value">
+              {overview.upstream.ok ? (
+                <span className="status-badge ok">正常 ({overview.upstream.count} 个模型)</span>
+              ) : (
+                <span className="status-badge err">失败: {overview.upstream.error ?? '未知'}</span>
+              )}
+            </span>
+          </div>
+        </div>
         <div style={{ marginTop: 14 }}>
           <button className="btn sm" onClick={onReload}>
             <IconRefresh size={13} /> 刷新
