@@ -1035,6 +1035,13 @@ async function handleFrame(
       onSessionConfig?.(command);
       break;
     case 'enqueue':
+      onQueueAction?.({
+        type: 'enqueue',
+        sessionId: command.sessionId,
+        text: command.text,
+        images: command.images,
+      });
+      break;
     case 'session-rename': {
       const title = command.title.trim().slice(0, 120);
       if (title) onQueueAction?.({ type: 'session-rename', sessionId: command.sessionId, title });

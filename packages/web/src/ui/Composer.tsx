@@ -127,6 +127,65 @@ export function Composer({ state, running }: { state: AppState; running: boolean
   const entry = state.catalog.find((item) => item.id === state.activeId);
   const menuRef = useDismiss(menu !== null, () => setMenu(null));
 
+
+  const [slashIndex, setSlashIndex] = useState(0);
+
+  const slashCommands = useMemo(() => {
+    return [
+      {
+        cmd: '/compact',
+        name: '压缩上下文',
+        desc: '对会话历史进行摘要压缩',
+        action: () => {
+          setText('');
+          store.compact();
+        }
+      },
+      {
+        cmd: '/export',
+        name: '导出 Markdown',
+        desc: '将对话下载为 .md 文件',
+        action: () => {
+          setText('');
+          if (state.activeId) downloadSessionMarkdown(state.activeId);
+        }
+      },
+      {
+        cmd: '/retry',
+        name: '重新生成',
+        desc: '重跑助手最近一轮回答',
+        action: () => {
+          setText('');
+          store.retry();
+        }
+      },
+      {
+        cmd: '/new',
+        name: '新建会话',
+        desc: '开启新的空白对话草稿',
+        action: () => {
+          setText('');
+          store.startDraft();
+        }
+      },
+      {
+        cmd: '/clear',
+        name: '清空输入',
+        desc: '清空当前输入框文字',
+        action: () => {
+          setText('');
+        }
+      }
+    ];
+  }, [state.activeId]);
+
+  const showSlashMenu = text.startsWith('/') && !text.includes('\n');
+  const matchedSlash = useMemo(() => {
+    if (!showSlashMenu) return [];
+    const q = text.toLowerCase();
+    return slashCommands.filter((item) => item.cmd.startsWith(q) || item.name.includes(text.slice(1)));
+  }, [showSlashMenu, text, slashCommands]);
+
   // 获取当前会话最后一条用户发送的消息文本，用于按 ↑ 键快速回溯重发
   const lastUserText = useMemo(() => {
     if (!state.activeId) return '';
@@ -411,6 +470,22 @@ export function Composer({ state, running }: { state: AppState; running: boolean
             ))}
           </div>
         )}
+        {showSlashMenu && matchedSlash.length > 0 && (
+          <div className="slash-menu">
+            {matchedSlash.map((item, i) => (
+              <div
+                key={item.cmd}
+                className={`slash-item${i === slashIndex ? ' active' : ''}`}
+                onMouseEnter={() => setSlashIndex(i)}
+                onClick={() => item.action()}
+              >
+                <span className="slash-cmd">{item.cmd}</span>
+                <span className="slash-name">{item.name}</span>
+                <span className="slash-desc">{item.desc}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <textarea
           ref={ref}
           rows={1}
@@ -424,6 +499,29 @@ export function Composer({ state, running }: { state: AppState; running: boolean
           }
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
+            if (showSlashMenu && matchedSlash.length > 0) {
+              if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                setSlashIndex((prev) => (prev + 1) % matchedSlash.length);
+                return;
+              }
+              if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                setSlashIndex((prev) => (prev - 1 + matchedSlash.length) % matchedSlash.length);
+                return;
+              }
+              if ((event.key === 'Enter' || event.key === 'Tab') && !event.shiftKey) {
+                event.preventDefault();
+                const target = matchedSlash[slashIndex] ?? matchedSlash[0];
+                target?.action();
+                return;
+              }
+              if (event.key === 'Escape') {
+                event.preventDefault();
+                setText('');
+                return;
+              }
+            }
             const plain = !event.shiftKey || event.metaKey || event.ctrlKey;
             if (event.key === 'Enter' && plain && !event.nativeEvent.isComposing) {
               event.preventDefault();

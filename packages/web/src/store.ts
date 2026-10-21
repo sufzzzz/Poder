@@ -168,7 +168,9 @@ export class AppStore {
     this.watchIdle();
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') {
+        const visible = document.visibilityState === 'visible';
+        this.link?.send({ type: 'presence', visible });
+        if (visible) {
           this.link?.resume();
           if (this.state.link === 'online' && this.state.activeId && Date.now() - this.lastFrameAt > 8000) {
             this.subscribeTo(this.state.activeId);
@@ -632,6 +634,17 @@ export class AppStore {
     const list = this.state.queued[sessionId] ?? [];
     const next = list.filter((q) => q.id !== queueId);
     this.patch({ queued: { ...this.state.queued, [sessionId]: next } });
+  }
+
+  sendQueuedNow(sessionId: string, queueId: string): void {
+    const list = this.state.queued[sessionId] ?? [];
+    const item = list.find((q) => q.id === queueId);
+    if (!item) return;
+    this.dequeue(sessionId, queueId);
+    this.abort();
+    setTimeout(() => {
+      this.prompt(item.text, false);
+    }, 120);
   }
 
   steer(text: string): void {

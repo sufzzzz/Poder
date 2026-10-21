@@ -79,6 +79,11 @@ export const Markdown = React.memo(function Markdown({ text }: { text: string })
               {children}
             </a>
           ),
+          table: ({ children }) => (
+            <div className="table-wrap">
+              <table>{children}</table>
+            </div>
+          ),
           pre: ({ children, node }) => <CodeBlockView node={node}>{children}</CodeBlockView>
         }}
       >

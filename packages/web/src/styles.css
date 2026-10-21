@@ -1668,3 +1668,61 @@ a { color: var(--accent); text-decoration: none; }
   transition: outline 0.3s ease, box-shadow 0.3s ease;
   box-shadow: 0 0 16px rgba(47, 157, 216, 0.35);
 }
+
+/* ---------- 斜杠命令浮层 (Slash Menu) ---------- */
+
+.composer {
+  position: relative;
+}
+
+.slash-menu {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  background: var(--panel-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  padding: 5px;
+  box-shadow: 0 10px 30px var(--shadow-lift);
+  backdrop-filter: blur(10px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.slash-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.slash-item.active,
+.slash-item:hover {
+  background: var(--hover-bg, var(--line-soft));
+}
+
+.slash-cmd {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.slash-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.slash-desc {
+  margin-left: auto;
+  font-size: 11.5px;
+  color: var(--muted);
+}

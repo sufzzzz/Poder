@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-import { IconCopy, IconPencil, IconRefresh } from './icons';
-
+import { IconCopy, IconPencil, IconRefresh, IconRewind } from './icons';
 
 /** 优先用异步剪贴板；被权限或非安全上下文挡住时退回 execCommand。 */
 async function writeClipboard(text: string): Promise<boolean> {
@@ -9,9 +8,7 @@ async function writeClipboard(text: string): Promise<boolean> {
       await navigator.clipboard.writeText(text);
       return true;
     }
-  } catch {
-    /* 落到下面的兜底 */
-  }
+  } catch {}
   try {
     const area = document.createElement('textarea');
     area.value = text;
@@ -37,12 +34,14 @@ export function MessageActions({
   role,
   text,
   onRetry,
-  onEdit
+  onEdit,
+  onRewind
 }: {
   role: 'user' | 'assistant';
   text: string;
   onRetry?: () => void;
   onEdit?: () => void;
+  onRewind?: () => void;
 }) {
   const [note, setNote] = useState<'' | '已复制' | '复制失败'>('');
 
@@ -78,6 +77,21 @@ export function MessageActions({
       {role === 'user' && onEdit && (
         <button className="ux-action" type="button" title="编辑重发" aria-label="编辑重发" onClick={onEdit}>
           <IconPencil size={13} />
+        </button>
+      )}
+      {role === 'user' && onRewind && (
+        <button
+          className="ux-action"
+          type="button"
+          title="回滚到此轮对话（之后的回复将被裁剪）"
+          aria-label="回滚到此处"
+          onClick={() => {
+            if (window.confirm('确定要回滚到此处？此后的对话内容将被裁剪。')) {
+              onRewind();
+            }
+          }}
+        >
+          <IconRewind size={13} />
         </button>
       )}
     </div>

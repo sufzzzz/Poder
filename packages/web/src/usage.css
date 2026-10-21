@@ -355,3 +355,48 @@
   pointer-events: none;
   letter-spacing: 0.3px;
 }
+
+/* ---------- 宽表格横向自适应滚动 ---------- */
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  margin: 14px 0;
+  border-radius: 9px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  scrollbar-width: thin;
+}
+
+.table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  text-align: left;
+}
+
+.table-wrap th,
+.table-wrap td {
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  white-space: nowrap;
+}
+
+.table-wrap th {
+  background: var(--table-head, var(--panel-3));
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--line);
+}
+
+.table-wrap tr:last-child td {
+  border-bottom: none;
+}
+
+.table-wrap tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+:root[data-theme='light'] .table-wrap tr:nth-child(even) {
+  background: rgba(0, 0, 0, 0.02);
+}

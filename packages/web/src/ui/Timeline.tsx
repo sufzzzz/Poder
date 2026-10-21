@@ -51,6 +51,7 @@ interface TimelineNodeProps {
   results: Map<string, any>;
   running: boolean;
   isLastAssistant: boolean;
+  userIndexFromEnd?: number;
   onOpenLightbox: (src: string) => void;
 }
 
@@ -62,6 +63,7 @@ const TimelineNodeView = React.memo(
     results,
     running,
     isLastAssistant,
+    userIndexFromEnd,
     onOpenLightbox,
   }: TimelineNodeProps) {
     if (node.kind === 'tools') {
@@ -105,7 +107,7 @@ const TimelineNodeView = React.memo(
               <UserText text={text} />
             </div>
           )}
-          {text && <MessageActions role="user" text={text} onEdit={() => prefillComposer(text)} />}
+          {text && <MessageActions role="user" text={text} onEdit={() => prefillComposer(text)} onRewind={typeof userIndexFromEnd === "number" && userIndexFromEnd > 0 && !running ? () => store.rewind(userIndexFromEnd) : undefined} />}
         </div>
       );
     }
@@ -192,6 +194,10 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
   const items = useMemo(() => {
     const entries = [...view.messages.entries()].sort((a, b) => a[0] - b[0]);
     return entries.filter(([, msg]) => msg.role !== 'toolResult');
+  const userIndices = useMemo(() => {
+    return items.filter(([, m]) => m.role === 'user').map(([idx]) => idx);
+  }, [items]);
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, state.rev, sessionId]);
 
@@ -240,6 +246,8 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
         const prevTs = prevNode ? (prevNode.kind === 'msg' ? prevNode.msg.timestamp : prevNode.ts) : undefined;
         const dayLabel = dayDivider(prevTs, node.kind === 'msg' ? node.msg.timestamp : node.ts);
         const isLastAssistant = node.kind === 'msg' && node.index === lastAssistantIndex;
+        const userPos = node.kind === 'msg' && node.msg.role === 'user' ? userIndices.indexOf(node.index) : -1;
+        const userIndexFromEnd = userPos >= 0 ? userIndices.length - userPos : undefined;
         return (
           <TimelineNodeView
             key={node.kind === 'tools' ? node.id : node.index}
@@ -248,6 +256,7 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
             results={results}
             running={running}
             isLastAssistant={isLastAssistant}
+            userIndexFromEnd={userIndexFromEnd}
             onOpenLightbox={setLightbox}
           />
         );
@@ -293,6 +302,15 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
         <div className="msg queued" key={q.id}>
           <div className="queued-label">
             <span className="spinner" /> 排队中 · 本轮结束后发送
+            <button
+              className="btn sm"
+              type="button"
+              style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}
+              onClick={() => store.sendQueuedNow(sessionId, q.id)}
+              title="打断当前轮次并立即发送"
+            >
+              立即发送
+            </button>
             <button className="btn sm" type="button" onClick={() => store.dequeue(sessionId, q.id)}>
               撤回
             </button>
