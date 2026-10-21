@@ -175,6 +175,14 @@ export class PairLink {
     this.open();
   }
 
+  /** 切回前台或网络唤醒时检查连接状态，若已断或异常则立即重新建立连接 */
+  resume(): void {
+    if (this.closed) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.reconnect();
+    }
+  }
+
   private scheduleRetry(): void {
     const delay = Math.min(10000, 600 * 2 ** Math.min(this.attempts++, 5));
     setTimeout(() => {

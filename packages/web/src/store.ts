@@ -159,6 +159,22 @@ export class AppStore {
   start(): void {
     if (this.link) return;
     this.watchIdle();
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          this.link?.resume();
+          if (this.state.link === 'online' && this.state.activeId && Date.now() - this.lastFrameAt > 8000) {
+            this.subscribeTo(this.state.activeId);
+          }
+        }
+      });
+    }
+    if (typeof window !== 'undefined') {
+      window.addEventListener('online', () => {
+        this.link?.resume();
+        if (this.state.activeId) this.subscribeTo(this.state.activeId);
+      });
+    }
     const device = boot.device;
     if (!device) {
       this.patch({ link: 'unauthorized', linkDetail: '尚未完成设备配对' });

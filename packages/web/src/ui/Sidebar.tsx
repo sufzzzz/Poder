@@ -114,7 +114,30 @@ export function Sidebar(props: {
 
         <label className="search">
           <IconSearch size={14} />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索会话" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.stopPropagation();
+                setQuery('');
+              }
+            }}
+            placeholder="搜索会话"
+          />
+          {query && (
+            <button
+              type="button"
+              className="search-clear"
+              onClick={(e) => {
+                e.preventDefault();
+                setQuery('');
+              }}
+              title="清空搜索"
+            >
+              ×
+            </button>
+          )}
         </label>
       </div>
 
