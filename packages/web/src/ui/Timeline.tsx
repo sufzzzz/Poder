@@ -115,6 +115,9 @@ const TimelineNodeView = React.memo(
       const text = textOf(msg.content);
       const tools = (msg.content ?? []).filter((p: any) => p?.type === 'toolCall');
       if (!text && !thinking.length && !tools.length && !msg.errorMessage) return null;
+      // 正在思考且正文未出现时自动展开，正文到达后自动收拢
+      const thinkingLive = isLastAssistant && running && !text;
+
       return (
         <div className="msg" key={index}>
           {dayLabel && <div className="ux-day">{dayLabel}</div>}
@@ -124,15 +127,21 @@ const TimelineNodeView = React.memo(
           </div>
           <div className="msg-body">
             {thinking.map((part: any, i: number) => (
-              <details className="thinking" key={i}>
+              <details className="thinking" key={i} open={thinkingLive ? true : undefined}>
                 <summary>
                   <IconSpark size={12} /> 思考过程
+                  {thinkingLive && <span className="thinking-live">思考中…</span>}
                 </summary>
                 <div className="thinking-body">{part.text}</div>
               </details>
             ))}
             <ToolGroup tools={tools} results={results} running={running} />
-            {text && <Markdown text={text} />}
+            {text && (
+              <div className="msg-text-stream">
+                <Markdown text={text} />
+                {isLastAssistant && running && <span className="typing-cursor" aria-hidden="true" />}
+              </div>
+            )}
             <MessageActions
               role="assistant"
               text={text}
@@ -279,6 +288,20 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
           <span className="spinner" /> 正在自动重试（第 {view.retry.attempt ?? 1} 次）
         </div>
       )}
+
+            {(state.queued[sessionId] ?? []).map((q) => (
+        <div className="msg queued" key={q.id}>
+          <div className="queued-label">
+            <span className="spinner" /> 排队中 · 本轮结束后发送
+            <button className="btn sm" type="button" onClick={() => store.dequeue(sessionId, q.id)}>
+              撤回
+            </button>
+          </div>
+          <div className="bubble-user queued-bubble">
+            {q.text}
+          </div>
+        </div>
+      ))}
 
       {running && !view.compaction && (
         <div className="run-line">

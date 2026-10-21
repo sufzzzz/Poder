@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { IconChevron } from './icons';
 
 function preview(value: unknown): string {
@@ -27,10 +27,27 @@ function resultText(result: any): string {
 
 export function ToolCard(props: { name: string; input?: unknown; result?: any; pending?: boolean }) {
   const [open, setOpen] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
+  // 工具执行期间展示毫秒级动态耗时
+  useEffect(() => {
+    if (!props.pending) return;
+    const start = Date.now();
+    const timer = setInterval(() => {
+      setElapsed(Math.round((Date.now() - start) / 100) / 10);
+    }, 100);
+    return () => clearInterval(timer);
+  }, [props.pending]);
+
   const output = resultText(props.result);
   const failed = Boolean(props.result?.isError);
   const state = props.pending || !props.result ? 'running' : failed ? 'failed' : 'done';
-  const stateText = state === 'running' ? '执行中' : state === 'failed' ? '失败' : '完成';
+  const stateText =
+    state === 'running'
+      ? elapsed > 0 ? `执行中 · ${elapsed.toFixed(1)}s` : '执行中'
+      : state === 'failed'
+        ? '失败'
+        : '完成';
 
   return (
     <div className="tool">

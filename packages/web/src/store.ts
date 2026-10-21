@@ -1,3 +1,8 @@
+export interface QueuedMessage {
+  id: string;
+  text: string;
+  time: number;
+}
 import type { CatalogEntry, ProviderEntry } from '@enso/pair';
 import {
   applyGuestEvent,
@@ -62,6 +67,7 @@ export interface AppState {
   rev: number;
   unread: Record<string, true>;
   toast: string | null;
+  queued: Record<string, QueuedMessage[]>;
 }
 
 type Listener = () => void;
@@ -124,7 +130,8 @@ export class AppStore {
     draft: null,
     rev: 0,
     unread: {},
-    toast: null
+    toast: null,
+    queued: {}
   };
 
   private listeners = new Set<Listener>();
@@ -472,6 +479,11 @@ export class AppStore {
     }
     const current = VIEW_CACHE.get(sessionId);
     if (!current) return;
+    if (event.type === 'status' && (event.status === 'idle' || event.status === 'failed')) {
+      if (this.state.queued[sessionId]?.length) {
+        this.patch({ queued: { ...this.state.queued, [sessionId]: [] } });
+      }
+    }
     const result = applyGuestEvent(current, event);
     VIEW_CACHE.set(sessionId, result.view);
     rememberContext(sessionId, result.view);
@@ -599,12 +611,27 @@ export class AppStore {
   prompt(text: string, running: boolean, images?: { data: string; mimeType: string }[]): void {
     const sessionId = this.state.activeId;
     if (!sessionId || !text.trim()) return;
+    if (running) {
+      const qItem: QueuedMessage = {
+        id: 'q-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 5),
+        text: text.trim(),
+        time: Date.now()
+      };
+      const prev = this.state.queued[sessionId] ?? [];
+      this.patch({ queued: { ...this.state.queued, [sessionId]: [...prev, qItem] } });
+    }
     this.link?.send({
       type: running ? 'enqueue' : 'prompt',
       sessionId,
       text,
       ...(images?.length ? { images } : {})
     });
+  }
+
+  dequeue(sessionId: string, queueId: string): void {
+    const list = this.state.queued[sessionId] ?? [];
+    const next = list.filter((q) => q.id !== queueId);
+    this.patch({ queued: { ...this.state.queued, [sessionId]: next } });
   }
 
   steer(text: string): void {
