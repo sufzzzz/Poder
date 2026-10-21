@@ -15,6 +15,7 @@ export interface Boot {
 
 const fallback: Boot = { user: '', device: null, base: '/enso' };
 
-export const boot: Boot = { ...fallback, ...((window as any).__ENSO_BOOT__ ?? {}) };
+const rawBoot = typeof window !== 'undefined' ? (window as any).__ENSO_BOOT__ : undefined;
+export const boot: Boot = { ...fallback, ...(rawBoot ?? {}) };
 export const base = boot.base || '/enso';
 export const adminApi = (path: string): string => `${base}/api/admin${path}`;

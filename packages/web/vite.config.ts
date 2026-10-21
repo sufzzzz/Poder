@@ -16,6 +16,28 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 3000
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks(id: string) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react/') || id.includes('react-dom/') || id.includes('scheduler/')) {
+              return 'vendor-react';
+            }
+            if (
+              id.includes('react-markdown') ||
+              id.includes('remark-gfm') ||
+              id.includes('micromark') ||
+              id.includes('mdast') ||
+              id.includes('unist') ||
+              id.includes('vfile') ||
+              id.includes('hast')
+            ) {
+              return 'vendor-markdown';
+            }
+          }
+        }
+      }
+    }
   }
 });

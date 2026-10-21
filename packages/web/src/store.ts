@@ -30,6 +30,7 @@ const THEME_KEY = 'enso-theme';
 
 export function readThemeMode(): ThemeMode | null {
   try {
+    if (typeof localStorage === 'undefined') return 'system';
     const value = localStorage.getItem(THEME_KEY);
     return value === 'light' || value === 'dark' || value === 'system' ? value : null;
   } catch {
@@ -39,7 +40,8 @@ export function readThemeMode(): ThemeMode | null {
 
 /** 把偏好落到 <html data-theme>，system 时读系统配色 */
 export function applyThemeMode(mode: ThemeMode): void {
-  const dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  const dark = mode === 'dark' || (mode === 'system' && window.matchMedia?.('(prefers-color-scheme: dark)')?.matches);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
 }
 
@@ -75,6 +77,7 @@ interface CachedContext {
 
 function loadContextCache(): Map<string, CachedContext> {
   try {
+    if (typeof localStorage === 'undefined') return new Map();
     const raw = localStorage.getItem(CONTEXT_KEY);
     const parsed = raw ? (JSON.parse(raw) as Record<string, CachedContext>) : null;
     return new Map(Object.entries(parsed && typeof parsed === 'object' ? parsed : {}));
@@ -99,6 +102,7 @@ function rememberContext(sessionId: string, view: GuestSessionView | undefined):
   contextTimer = setTimeout(() => {
     contextTimer = null;
     try {
+      if (typeof localStorage === 'undefined') return;
       localStorage.setItem(CONTEXT_KEY, JSON.stringify(Object.fromEntries(CONTEXT_CACHE)));
     } catch {
       /* 配额或隐私模式：忽略即可 */
