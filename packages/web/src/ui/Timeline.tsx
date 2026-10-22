@@ -213,18 +213,31 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
     if (msg.role === 'toolResult' && msg.toolCallId) results.set(msg.toolCallId, msg);
   }
 
-  // 严格判定当前是否在为时间线最末尾的 assistant 消息流式吐字：
-  // 必须：会话运行中，时间线最后一项本身就是 assistant，且未结案。
-  // 若最后一项是 user（刚发了新提问），历史旧 assistant 绝不处于 streaming 态，光标绝不挂在旧回复末尾。
-  const lastItem = items.length > 0 ? items[items.length - 1] : null;
-  const streamingAssistantIndex =
-    running &&
-    lastItem &&
-    lastItem[1]?.role === 'assistant' &&
-    !lastItem[1]?.stopReason &&
-    !lastItem[1]?.errorMessage
-      ? lastItem[0]
-      : -1;
+  // 找到时间线中最后一条 User 提问的 index
+  const lastUserIndex = (() => {
+    for (let i = items.length - 1; i >= 0; i -= 1) {
+      if (items[i][1]?.role === 'user') return items[i][0];
+    }
+    return -1;
+  })();
+
+  // 判定当前轮次正在流式生成的 Assistant 消息：
+  // 必须：会话正处于 running 运行态，且该 Assistant 消息出现在最后一条 User 提问之后！
+  // 若用户刚发了新提问（User 后面还没有 Assistant 消息），立即返回 -1，历史回答绝不亮光标；
+  // 一旦本轮 Assistant 开始吐字（出现在最后 User 之后），光标立即稳定点亮！
+  const streamingAssistantIndex = (() => {
+    if (!running) return -1;
+    for (let i = items.length - 1; i >= 0; i -= 1) {
+      const [idx, m] = items[i];
+      if (m?.role === 'assistant') {
+        return idx > lastUserIndex ? idx : -1;
+      }
+      if (m?.role === 'user') {
+        return -1;
+      }
+    }
+    return -1;
+  })();
 
   const lastAssistantIndex = (() => {
     for (let i = items.length - 1; i >= 0; i -= 1) {

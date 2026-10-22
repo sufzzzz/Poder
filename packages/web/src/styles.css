@@ -1628,14 +1628,15 @@ a { color: var(--accent); text-decoration: none; }
 .markdown.streaming > ul:last-child > li:last-child::after,
 .markdown.streaming > blockquote:last-child > :last-child::after,
 .markdown.streaming > .code-wrap:last-child pre code::after {
-  content: '';
+  content: '\00a0';
   display: inline-block;
-  width: 6px;
+  width: 7px;
   height: 15px;
-  margin-left: 3px;
+  margin-left: 4px;
   vertical-align: -2px;
-  background: var(--accent);
-  border-radius: 1px;
+  background-color: var(--accent);
+  border-radius: 1.5px;
+  box-shadow: 0 0 6px rgba(47, 91, 216, 0.4);
   animation: cursor-blink 0.8s infinite steps(2, start);
 }
 
