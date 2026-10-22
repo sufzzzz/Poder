@@ -399,28 +399,31 @@ function ChatHead({
           ⋯
         </button>
         {moreOpen && (
-          <div className="head-more-menu" onClick={() => setMoreOpen(false)}>
-            {entry && !drafting && (
-              <>
-                <button onClick={() => store.retry()}>
-                  <IconRefresh size={14} /> 重新生成
-                </button>
-                <button onClick={() => store.compact()}>
-                  <IconWrench size={14} /> 压缩上下文
-                </button>
-                <button onClick={() => { if (state.activeId) void shareOrDownloadSession(state.activeId, entry?.title); }}>
-                  <IconDownload size={14} /> 导出/分享对话
-                </button>
-                <div className="menu-divider" />
-              </>
-            )}
-            <button onClick={onShortcuts}>
-              <IconHelp size={14} /> 快捷键指南
-            </button>
-            <button onClick={() => { window.location.hash = '#/settings'; }}>
-              <IconSettings size={14} /> 系统设置
-            </button>
-          </div>
+          <>
+            <div className="head-more-scrim" onClick={() => setMoreOpen(false)} />
+            <div className="head-more-menu" onClick={() => setMoreOpen(false)}>
+              {entry && !drafting && (
+                <>
+                  <button onClick={() => store.retry()}>
+                    <IconRefresh size={14} /> 重新生成
+                  </button>
+                  <button onClick={() => store.compact()}>
+                    <IconWrench size={14} /> 压缩上下文
+                  </button>
+                  <button onClick={() => { if (state.activeId) void shareOrDownloadSession(state.activeId, entry?.title); }}>
+                    <IconDownload size={14} /> 导出/分享对话
+                  </button>
+                  <div className="menu-divider" />
+                </>
+              )}
+              <button onClick={onShortcuts}>
+                <IconHelp size={14} /> 快捷键指南
+              </button>
+              <button onClick={() => { window.location.hash = '#/settings'; }}>
+                <IconSettings size={14} /> 系统设置
+              </button>
+            </div>
+          </>
         )}
       </div>
     </header>

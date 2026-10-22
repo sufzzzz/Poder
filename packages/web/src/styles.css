@@ -322,6 +322,8 @@ a { color: var(--accent); text-decoration: none; }
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg); }
 
 .chat-head {
+  position: relative;
+  z-index: 35;
   display: flex; align-items: center; gap: 12px;
   padding: calc(10px + env(safe-area-inset-top, 0px)) 18px 10px;
   border-bottom: 1px solid var(--line);
@@ -347,6 +349,13 @@ a { color: var(--accent); text-decoration: none; }
 @media (max-width: 620px) {
   .chat-actions-desktop { display: none !important; }
   .chat-actions-mobile { display: flex !important; }
+}
+
+.head-more-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  background: transparent;
 }
 
 .head-more-menu {
