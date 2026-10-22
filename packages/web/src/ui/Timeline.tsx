@@ -140,8 +140,7 @@ const TimelineNodeView = React.memo(
             <ToolGroup tools={tools} results={results} running={running} />
             {text && (
               <div className="msg-text-stream">
-                <Markdown text={text} />
-                {isLastAssistant && running && <span className="typing-cursor" aria-hidden="true" />}
+                <Markdown text={text} streaming={isLastAssistant && running} />
               </div>
             )}
             <MessageActions

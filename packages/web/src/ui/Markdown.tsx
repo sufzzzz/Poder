@@ -68,9 +68,9 @@ const CodeBlockView = React.memo(function CodeBlockView({
   );
 });
 
-export const Markdown = React.memo(function Markdown({ text }: { text: string }) {
+export const Markdown = React.memo(function Markdown({ text, streaming }: { text: string; streaming?: boolean }) {
   return (
-    <div className="markdown">
+    <div className={`markdown${streaming ? ' streaming' : ''}`}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
