@@ -50,6 +50,7 @@ interface TimelineNodeProps {
   dayLabel: string;
   results: Map<string, any>;
   running: boolean;
+  isStreaming: boolean;
   isLastAssistant: boolean;
   userIndexFromEnd?: number;
   onOpenLightbox: (src: string) => void;
@@ -62,6 +63,7 @@ const TimelineNodeView = React.memo(
     dayLabel,
     results,
     running,
+    isStreaming,
     isLastAssistant,
     userIndexFromEnd,
     onOpenLightbox,
@@ -118,7 +120,7 @@ const TimelineNodeView = React.memo(
       const tools = (msg.content ?? []).filter((p: any) => p?.type === 'toolCall');
       if (!text && !thinking.length && !tools.length && !msg.errorMessage) return null;
       // 正在思考且正文未出现时自动展开，正文到达后自动收拢
-      const thinkingLive = isLastAssistant && running && !text;
+      const thinkingLive = isStreaming && !text;
 
       return (
         <div className="msg" key={index} data-index={index}>
@@ -140,7 +142,7 @@ const TimelineNodeView = React.memo(
             <ToolGroup tools={tools} results={results} running={running} />
             {text && (
               <div className="msg-text-stream">
-                <Markdown text={text} streaming={isLastAssistant && running} />
+                <Markdown text={text} streaming={isStreaming} />
               </div>
             )}
             <MessageActions
@@ -176,6 +178,7 @@ const TimelineNodeView = React.memo(
   },
   (prev, next) => {
     if (prev.dayLabel !== next.dayLabel) return false;
+    if (prev.isStreaming !== next.isStreaming) return false;
     if (prev.isLastAssistant !== next.isLastAssistant) return false;
     if (prev.running !== next.running) return false;
     if (prev.node.kind !== next.node.kind) return false;
@@ -209,6 +212,19 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
   for (const [, msg] of view.messages) {
     if (msg.role === 'toolResult' && msg.toolCallId) results.set(msg.toolCallId, msg);
   }
+
+  // 严格判定当前是否在为时间线最末尾的 assistant 消息流式吐字：
+  // 必须：会话运行中，时间线最后一项本身就是 assistant，且未结案。
+  // 若最后一项是 user（刚发了新提问），历史旧 assistant 绝不处于 streaming 态，光标绝不挂在旧回复末尾。
+  const lastItem = items.length > 0 ? items[items.length - 1] : null;
+  const streamingAssistantIndex =
+    running &&
+    lastItem &&
+    lastItem[1]?.role === 'assistant' &&
+    !lastItem[1]?.stopReason &&
+    !lastItem[1]?.errorMessage
+      ? lastItem[0]
+      : -1;
 
   const lastAssistantIndex = (() => {
     for (let i = items.length - 1; i >= 0; i -= 1) {
@@ -248,16 +264,18 @@ export function Timeline({ state, view, sessionId }: { state: AppState; view: Gu
         const prevNode = i > 0 ? nodes[i - 1] : null;
         const prevTs = prevNode ? (prevNode.kind === 'msg' ? prevNode.msg.timestamp : prevNode.ts) : undefined;
         const dayLabel = dayDivider(prevTs, node.kind === 'msg' ? node.msg.timestamp : node.ts);
+        const isStreaming = node.kind === 'msg' && node.index === streamingAssistantIndex;
         const isLastAssistant = node.kind === 'msg' && node.index === lastAssistantIndex;
         const userPos = node.kind === 'msg' && node.msg.role === 'user' ? userIndices.indexOf(node.index) : -1;
         const userIndexFromEnd = userPos >= 0 ? userIndices.length - userPos : undefined;
         return (
           <TimelineNodeView
-            key={node.kind === 'tools' ? node.id : node.index}
+            key={node.kind === 'tools' ? `${sessionId}-${node.id}` : `${sessionId}-${node.index}`}
             node={node}
             dayLabel={dayLabel}
             results={results}
             running={running}
+            isStreaming={isStreaming}
             isLastAssistant={isLastAssistant}
             userIndexFromEnd={userIndexFromEnd}
             onOpenLightbox={setLightbox}
